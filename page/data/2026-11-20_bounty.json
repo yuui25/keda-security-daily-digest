@@ -1,0 +1,63 @@
+{
+  "id": "bb",
+  "title": "バグバウンティ・実践",
+  "items": [
+    {
+      "date": "11/19",
+      "pick": false,
+      "title": "How an Empty String Unlocked Every Database Backup in Swisscom…: 空文字列ひとつで Swisscom のデータベースバックアップがすべて開いたという報告",
+      "tags": [
+        "認可不備",
+        "本文未読"
+      ],
+      "fields": [],
+      "sources": "[Medium](https://medium.com/p/83a56bfdac21)"
+    },
+    {
+      "date": "11/19",
+      "pick": false,
+      "title": "How an GraphQL IDOR leaked AI conversation History…: GraphQL の IDOR で AI との会話履歴が漏れたという報告",
+      "tags": [
+        "IDOR",
+        "GraphQL",
+        "本文未読"
+      ],
+      "fields": [],
+      "sources": "[Medium](https://medium.com/p/df75b24a08f7)"
+    },
+    {
+      "date": "11/19",
+      "pick": false,
+      "title": "ZIP SLIP TO ROOT: ZIP のアップロードをリモートコード実行につなげたという報告",
+      "tags": [
+        "Zip Slip",
+        "RCE",
+        "本文未読"
+      ],
+      "fields": [],
+      "sources": "[Medium](https://medium.com/p/02768fdbdca4)"
+    },
+    {
+      "date": "11/19",
+      "pick": false,
+      "title": "I Found a Stored XSS That Fires When You Click Follow: 「フォロー」を押すと発火する格納型 XSS",
+      "tags": [
+        "Stored XSS",
+        "本文未読"
+      ],
+      "fields": [],
+      "sources": "[Medium](https://medium.com/p/c67fa46330e9)"
+    },
+    {
+      "date": "11/19",
+      "pick": false,
+      "title": "One Text Box, 178 Organizations…: テキストボックス 1 つと「信頼されたスクリプト」が 178 の組織に影響したという XSS の報告",
+      "tags": [
+        "XSS",
+        "本文未読"
+      ],
+      "fields": [],
+      "sources": "[Medium](https://medium.com/p/903a7ddec809)"
+    }
+  ]
+}

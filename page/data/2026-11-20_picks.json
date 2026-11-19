@@ -1,0 +1,28 @@
+{
+  "hide": [
+    "cve",
+    "deep"
+  ],
+  "ai": [
+    "Gemini 4 Neon",
+    "Tool Retrieval"
+  ],
+  "aisec": [
+    "API ルーター",
+    "エージェント「Muse」",
+    "Notion AI"
+  ],
+  "sec": [
+    "Cisco Expressway",
+    "PHP 8.5.13",
+    "Drupal core",
+    "Horizon3"
+  ],
+  "cve": [],
+  "jp": [
+    "六花亭",
+    "Kyash",
+    "Node-RED"
+  ],
+  "jvn": []
+}
