@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["external sandbox", "Agent Host Protocol"],
+  "aisec": ["Microsoft Agent Framework", "Docker Model Runner", "Ollama"],
+  "sec": ["nginx2root", "CISA KEV に 4 件", "Apache Roller", "F5 BIG-IP"],
+  "cve": [],
+  "jp": ["KARTE", "NewsPicks", "楽天証券"],
+  "jvn": []
+}

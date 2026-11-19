@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KEDA Daily Digest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@700&display=swap" rel="stylesheet">
+<style>
+/* 配置の考え方: スマホ 1 カラムの日報。上から「まず見る → 内訳 → 深掘り → 分野別」。
+   見出しだけ流し読みし、気になったものだけタップで開く。 */
+:root {
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --ink: #17212f;
+  --muted: #586577;
+  --line: #d3dae4;
+  --accent: #2a4fa8;
+  --accent-soft: #e4ebf9;
+  --crit: #c2301d;
+  --crit-soft: #fbe6e2;
+  --warn: #a86100;
+  --warn-soft: #fbeed6;
+  --ok: #1d7650;
+  --cat-ai: #2a4fa8;
+  --cat-aisec: #7740a3;
+  --cat-sec: #0e7a84;
+  --cat-cve: #a86100;
+  --cat-jp: #b03558;
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #10151d; --surface: #19212c; --ink: #e6ebf2; --muted: #98a5b6; --line: #2c3746;
+    --accent: #8fb0ff; --accent-soft: #1f2c49;
+    --crit: #ff806b; --crit-soft: #3a1d19; --warn: #f0b24a; --warn-soft: #382a12; --ok: #5fce9a;
+    --cat-ai: #8fb0ff; --cat-aisec: #c79af0; --cat-sec: #58c9d3; --cat-cve: #f0b24a; --cat-jp: #f08aa8;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #10151d; --surface: #19212c; --ink: #e6ebf2; --muted: #98a5b6; --line: #2c3746;
+  --accent: #8fb0ff; --accent-soft: #1f2c49;
+  --crit: #ff806b; --crit-soft: #3a1d19; --warn: #f0b24a; --warn-soft: #382a12; --ok: #5fce9a;
+  --cat-ai: #8fb0ff; --cat-aisec: #c79af0; --cat-sec: #58c9d3; --cat-cve: #f0b24a; --cat-jp: #f08aa8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 56px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.75;
+  -webkit-text-size-adjust: 100%;
+}
+a { color: var(--accent); }
+a:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--accent-soft); padding: .05em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+strong { font-weight: 700; }
+p { margin: 0; }
+ul { margin: 0; padding-left: 1.2em; }
+li + li { margin-top: .35em; }
+.wrap { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; display: flex; flex-direction: column; gap: 20px; }
+
+/* 題字 */
+.mast { padding: 24px 0 4px; display: flex; flex-direction: column; gap: 2px; }
+.mast .kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; color: var(--muted); }
+.mast h1 { margin: 0; font-family: var(--font-display); font-size: 30px; line-height: 1.25; font-variant-numeric: tabular-nums; text-wrap: balance; }
+.mast .range { font-size: 12.5px; color: var(--muted); }
+
+/* ナビ */
+.nav { position: sticky; top: 0; z-index: 5; background: var(--bg); margin: 0 -16px; padding: 8px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a { flex: none; text-decoration: none; font-size: 13px; font-weight: 500; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; display: flex; align-items: center; gap: 6px; }
+.nav a i { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted)); }
+
+/* カード共通 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.label { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); }
+
+/* まず見る */
+.first { border-color: var(--crit); background: var(--crit-soft); }
+.first .label { color: var(--crit); }
+.first ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; counter-reset: n; }
+.first li { margin: 0; display: grid; grid-template-columns: 26px 1fr; gap: 10px; counter-increment: n; }
+.first li::before { content: counter(n); width: 26px; height: 26px; border-radius: 50%; background: var(--crit); color: var(--surface); font-family: var(--font-mono); font-weight: 500; font-size: 13px; display: grid; place-items: center; margin-top: 1px; }
+
+/* 内訳 */
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; }
+.bar a { display: block; background: var(--c); min-width: 6px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 6px 12px; }
+.legend a { text-decoration: none; color: var(--ink); font-size: 13px; display: flex; align-items: baseline; gap: 6px; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; transform: translateY(-1px); }
+.legend b { margin-left: auto; font-family: var(--font-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* サマリ */
+.summary p + p { margin-top: .7em; }
+.more > summary { cursor: pointer; color: var(--accent); font-size: 13px; font-weight: 500; list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more[open] > summary { margin-bottom: .7em; }
+
+/* 深掘り */
+.deep { border-left: 4px solid var(--accent); }
+.deep h2 { margin: 0; font-size: 18px; line-height: 1.5; text-wrap: balance; }
+.fold { border-top: 1px solid var(--line); padding-top: 10px; }
+.fold > summary { cursor: pointer; font-weight: 700; font-size: 14px; list-style: none; display: flex; justify-content: space-between; gap: 8px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after, .item > summary::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: 6px 4px 0 0; }
+.fold[open] > summary::after, .item[open] > summary::after { transform: rotate(-135deg); margin-top: 10px; }
+.fold .fbody { padding-top: 8px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; }
+.fold.todo { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 8px; padding: 10px 12px; }
+
+/* セクション */
+section { display: flex; flex-direction: column; gap: 8px; }
+.sechead { display: flex; align-items: center; gap: 8px; padding-top: 4px; }
+.sechead i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+.sechead h2 { margin: 0; font-size: 17px; }
+.sechead .n { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.sechead button { margin-left: auto; font: inherit; font-size: 12.5px; color: var(--accent); background: none; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; cursor: pointer; }
+h3.sub { margin: 10px 0 0; font-size: 13.5px; color: var(--muted); font-weight: 700; }
+
+.item { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--c, var(--line)); border-radius: 10px; }
+.item > summary { cursor: pointer; list-style: none; padding: 11px 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+.item > summary::-webkit-details-marker { display: none; }
+.item > summary::after { grid-column: 2; grid-row: 2; }
+.item .t { grid-column: 1; grid-row: 2; }
+.item .meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.item .meta .d, .item .meta .id { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.item .meta .id { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.item .t { font-weight: 500; font-size: 14.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.item .sig { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+.item .body { border-top: 1px solid var(--line); padding: 12px; display: flex; flex-direction: column; gap: 12px; font-size: 14.5px; }
+.f { display: flex; flex-direction: column; gap: 4px; }
+.fl { font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .04em; }
+.src { display: flex; flex-wrap: wrap; gap: 6px; }
+.src a { font-size: 12.5px; text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; }
+
+.tag { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 0 6px; line-height: 1.7; border: 1px solid currentColor; }
+.tag-crit { color: var(--crit); background: var(--crit-soft); }
+.tag-warn { color: var(--warn); background: var(--warn-soft); }
+.tag-n { color: var(--muted); }
+
+/* CVE */
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.tile b { display: block; font-family: var(--font-mono); font-weight: 500; font-size: 24px; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--c); }
+.tile span { font-size: 12px; color: var(--muted); }
+.meter { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+.meter .track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.meter .track i { display: block; height: 100%; background: var(--c); border-radius: 3px; }
+.meter .v { font-family: var(--font-mono); font-size: 13px; font-weight: 500; color: var(--c); font-variant-numeric: tabular-nums; }
+.notes { font-size: 14.5px; }
+
+.rest > summary { cursor: pointer; list-style: none; font-size: 13px; font-weight: 500; color: var(--accent); padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; text-align: center; }
+.rest > summary::-webkit-details-marker { display: none; }
+.restbody { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
+.legend small { color: var(--muted); font-weight: 400; }
+.foot { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; }
+.foot details summary { cursor: pointer; }
+.foot ul { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const D = /*DATA*/null;
+
+const HIDE = D.hide || [];
+const CAT = { bb: 'var(--cat-cve)', ai: 'var(--cat-ai)', aisec: 'var(--cat-aisec)', sec: 'var(--cat-sec)', cve: 'var(--cat-cve)', jp: 'var(--cat-jp)' };
+const TAG = { '悪用中': 'crit', 'KEV': 'crit', 'PoC公開': 'warn', '続報': 'n', '国内': 'n' };
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function md(s) {
+  return esc(s || '')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
+}
+function tags(a) { return (a || []).map(t => `<span class="tag tag-${TAG[t] || 'n'}">${esc(t)}</span>`).join(''); }
+function sub(a) { return a && a.length ? `<ul>${a.map(x => `<li>${md(x)}</li>`).join('')}</ul>` : ''; }
+function fields(fs) {
+  return fs.map(f => {
+    if (f.label && !f.inline) return `<div class="f"><div class="fl">${md(f.label)}</div>${f.text ? `<p>${md(f.text)}</p>` : ''}${sub(f.sub)}</div>`;
+    return `<div class="f"><p>${f.label ? `<strong>${md(f.label)}</strong> ` : ''}${md(f.text)}</p>${sub(f.sub)}</div>`;
+  }).join('');
+}
+function sources(s) {
+  if (!s) return '';
+  const links = [...s.matchAll(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g)];
+  if (!links.length) return `<p class="fl">出典: ${md(s)}</p>`;
+  return `<div class="src">${links.map(m => `<a href="${esc(m[2])}" rel="noopener">${esc(m[1])}</a>`).join('')}</div>`;
+}
+function item(it, c) {
+  return `<details class="item" style="--c:${c}"><summary>
+    <span class="meta">${it.date ? `<span class="d">${esc(it.date)}</span>` : ''}${tags(it.tags)}</span>
+    <span class="t">${md(it.title)}</span></summary>
+    <div class="body">${fields(it.fields)}${sources(it.sources)}</div></details>`;
+}
+function sechead(id, title, n) {
+  return `<div class="sechead" style="--c:${CAT[id]}"><i></i><h2>${esc(title)}</h2><span class="n">${n}件</span><button type="button" data-toggle="${id}">すべて開く</button></div>`;
+}
+function sev(v) { return v == null ? 'var(--muted)' : v >= 9 ? 'var(--crit)' : v >= 7 ? 'var(--warn)' : 'var(--ok)'; }
+
+if (HIDE.includes('deep') && D.deep) {
+  const sec = D.sections.find(s => s.id === 'sec') || D.sections[D.sections.length - 1];
+  sec.items.unshift({ ...D.deep, pick: true });
+  D.first = D.first.map(x => x.replace(/\s*\(深掘り参照\)/, ''));
+  D.deep = null;
+}
+const pk = a => a.filter(x => x.pick), rs = a => a.filter(x => !x.pick);
+const jpAll = D.jp.flatMap(s => s.items);
+const counts = [
+  ...D.sections.map(s => ({ id: s.id, n: s.items.length, p: pk(s.items).length })),
+  ...(HIDE.includes('cve') ? [] : [{ id: 'cve', n: D.cves.length, p: pk(D.cves).length }]),
+  { id: 'jp', n: jpAll.length + D.jvn.length, p: pk(jpAll).length + pk(D.jvn).length },
+];
+const short = { bb: '実践', ai: 'AI', aisec: 'AIセキュリティ', sec: 'セキュリティ', cve: 'CVE', jp: '国内' };
+const [y, m, d] = D.date.split('-');
+function rest(n, inner) { return n ? `<details class="rest"><summary>その他 ${n} 件を表示</summary><div class="restbody">${inner}</div></details>` : ''; }
+
+let h = '';
+h += `<header class="mast"><span class="kicker">KEDA DAILY DIGEST</span><h1>${+m}月${+d}日の日報</h1>${D.range ? `<span class="range">対象: ${esc(D.range)} に公開された情報</span>` : ''}</header>`;
+h += `<nav class="nav" aria-label="セクション">${D.deep ? '<a href="#deep">深掘り</a>' : ''}${counts.map(c => `<a href="#${c.id}" style="--c:${CAT[c.id]}"><i></i>${short[c.id]}</a>`).join('')}</nav>`;
+
+if (D.first.length) {
+  h += `<div class="card first" id="first"><span class="label">今日まず見る ${D.first.length} 件</span><ol>${D.first.map(x => `<li><span>${md(x)}</span></li>`).join('')}</ol></div>`;
+}
+
+const total = counts.reduce((n, c) => n + c.n, 0), picked = counts.reduce((n, c) => n + c.p, 0);
+h += `<div class="card"><span class="label">${picked < total ? `厳選 ${picked} 件 (全 ${total} 件から)` : `今日の内訳 (全 ${total} 件)`}</span>
+  <div class="bar">${counts.filter(c => c.p).map(c => `<a href="#${c.id}" style="--c:${CAT[c.id]};flex:${c.p}" aria-label="${short[c.id]} ${c.p}件"></a>`).join('')}</div>
+  <div class="legend">${counts.map(c => `<a href="#${c.id}" style="--c:${CAT[c.id]}"><i></i>${short[c.id]}<b>${c.p}${c.p < c.n ? `<small> / ${c.n}</small>` : ''}</b></a>`).join('')}</div></div>`;
+
+if (D.summary.length) {
+  h += `<div class="card summary"><span class="label">サマリ</span><p>${md(D.summary[0])}</p>${D.summary.length > 1 ? `<details class="more"><summary>続きを読む (分野別)</summary>${D.summary.slice(1).map(p => `<p>${md(p)}</p>`).join('')}</details>` : ''}</div>`;
+}
+
+if (D.deep) {
+  const dp = D.deep;
+  h += `<div class="card deep" id="deep"><span class="label">今日の深掘り</span>
+    <span class="meta" style="display:flex;gap:6px;flex-wrap:wrap">${tags(dp.tags)}</span><h2>${md(dp.title)}</h2>
+    ${dp.fields.map(f => {
+      const todo = /今日できること/.test(f.label || '');
+      return `<details class="fold${todo ? ' todo' : ''}"${todo ? ' open' : ''}><summary>${md(f.label || '')}</summary><div class="fbody">${f.text ? `<p>${md(f.text)}</p>` : ''}${sub(f.sub)}</div></details>`;
+    }).join('')}
+    ${sources(dp.sources)}</div>`;
+}
+
+for (const s of D.sections) {
+  const r = rs(s.items);
+  h += `<section id="${s.id}">${sechead(s.id, s.title, pk(s.items).length)}${pk(s.items).map(it => item(it, CAT[s.id])).join('')}${rest(r.length, r.map(it => item(it, CAT[s.id])).join(''))}</section>`;
+}
+
+function cveCard(c) {
+  return `<details class="item" style="--c:${sev(c.score)}"><summary>
+      <span class="meta"><span class="id">${esc(c.id)}</span>${tags(c.tags)}</span>
+      <span class="t">${md(c.product)}</span>
+      <span class="meter"><span class="track"><i style="width:${c.score != null ? c.score * 10 : 0}%"></i></span><span class="v">${c.score != null ? c.score.toFixed(1) : '–'}</span></span>
+      <span class="sig">${md(c.signal)}</span></summary>
+      <div class="body"><div class="f"><div class="fl">バグクラス (条件 → sink → 結果)</div><p>${md(c.summary)}</p></div>
+      <div class="f"><div class="fl">CWE / CVSS</div><p>${md(c.class)}</p></div>
+      <div class="f"><div class="fl">修正</div><p>${md(c.fix)}</p></div></div></details>`;
+}
+function jvnCard(j) {
+  return `<details class="item" style="--c:${CAT.jp}"><summary>
+      <span class="meta"><span class="d">${esc(j.date)}</span><span class="id">${esc(j.id)}</span></span>
+      <span class="t">${md(j.product)}</span></summary>
+      <div class="body"><p>${md(j.summary)}</p><div class="f"><div class="fl">CVSS / 影響</div><p>${md(j.cvss)}</p></div>${sources(j.link)}</div></details>`;
+}
+
+// CVE
+if (!HIDE.includes('cve')) {
+  const crit = D.cves.filter(c => c.score != null && c.score >= 9).length;
+  const high = D.cves.filter(c => c.score != null && c.score >= 7 && c.score < 9).length;
+  const other = D.cves.length - crit - high;
+  const r = rs(D.cves);
+  const notes = D.cve_notes.length ? `<div class="card notes"><span class="label">今日の CVE 所感</span><ul>${D.cve_notes.map(n => `<li>${md(n)}</li>`).join('')}</ul></div>` : '';
+  h += `<section id="cve">${sechead('cve', '新規 CVE / Advisory', pk(D.cves).length)}
+    <div class="tiles">
+      <div class="tile" style="--c:var(--crit)"><b>${crit}</b><span>Critical (9.0 以上)</span></div>
+      <div class="tile" style="--c:var(--warn)"><b>${high}</b><span>High (7.0〜8.9)</span></div>
+      <div class="tile" style="--c:var(--muted)"><b>${other}</b><span>それ以下・スコアなし</span></div>
+    </div>
+    <p class="fl" style="font-weight:400">上の数字は全 ${D.cves.length} 件の内訳。</p>
+    ${pk(D.cves).map(cveCard).join('')}
+    ${r.length ? rest(r.length, r.map(cveCard).join('') + notes) : notes}
+  </section>`;
+}
+
+// 国内
+{
+  const jpPick = pk(jpAll), jvnPick = pk(D.jvn);
+  h += `<section id="jp">${sechead('jp', '日本国内の動向', jpPick.length + jvnPick.length)}`;
+  h += jpPick.map(it => item(it, CAT.jp)).join('') + jvnPick.map(jvnCard).join('');
+  let inner = '', n = 0;
+  for (const s of D.jp) {
+    const r = rs(s.items);
+    if (r.length) { inner += `<h3 class="sub">${esc(s.title)}</h3>${r.map(it => item(it, CAT.jp)).join('')}`; n += r.length; }
+  }
+  const jr = rs(D.jvn);
+  if (jr.length) {
+    inner += `<h3 class="sub">国内製品の脆弱性 (JVN)</h3>${jr.map(jvnCard).join('')}`; n += jr.length;
+    if (D.jvn_note) inner += `<p class="fl" style="font-weight:400">${md(D.jvn_note)}</p>`;
+  }
+  h += rest(n, inner) + `</section>`;
+}
+
+h += `<footer class="foot">${D.source_url ? `<a href="${esc(D.source_url)}" rel="noopener">GitHub の全文 (Markdown) を開く</a>` : ''}
+  ${D.debug.length ? `<details><summary>取得状況</summary><ul>${D.debug.map(x => `<li>${md(x)}</li>`).join('')}</ul></details>` : ''}</footer>`;
+
+document.getElementById('app').innerHTML = h;
+document.title = 'KEDA Daily Digest';
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-toggle]');
+  if (!b) return;
+  const items = [...document.querySelectorAll('#' + b.dataset.toggle + ' > details.item')];
+  const open = !items.every(x => x.open);
+  items.forEach(x => { x.open = open; });
+  b.textContent = open ? 'すべて閉じる' : 'すべて開く';
+});
+</script>
+</body>
+</html>
