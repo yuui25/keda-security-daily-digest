@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["harness adapters", "Antigravity を他社の AI"],
+  "aisec": ["Cairn", "Bell Canada", "トークン詐欺"],
+  "sec": ["CISA KEV に 4 件", "Linux KVM", "FastUnlock", "WatchGuard Dimension"],
+  "cve": [],
+  "jp": ["GSS のファイル共有", "SBC メディカルグループ", "サブドメインテイクオーバー"],
+  "jvn": []
+}
