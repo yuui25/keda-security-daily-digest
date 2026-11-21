@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["Inkling 2 Mini", "Paige"],
+  "aisec": ["MONAI Label の欠陥に CVE-2026-133968", "MCP サーバーの欠陥が続く", "PreToolUse"],
+  "sec": ["Entra Connect Health", "Fastify の Express 互換層", "Mitel MiCollab", "GPGME の二重解放"],
+  "cve": [],
+  "jp": ["延べ 2,200 社", "六花亭", "富岳"],
+  "jvn": []
+}
