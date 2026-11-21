@@ -7,7 +7,7 @@ template.html に埋め込んで index.html を出力する。
       --picks data/2026-11-19_picks.json --bounty data/2026-11-19_bounty.json --out /tmp/index.html
 
 picks.json  : 分野ごとに「載せる項目の見出しの一部」を並べる。hide に入れた欄 (cve / deep) はページに出さない。
-bounty.json : 「バグバウンティ・実践」欄の中身 (日報の Markdown には無いので別ファイルで渡す)。
+bounty.json : 「バグバウンティ・実践」欄の中身。日報の Markdown にも bounty_to_md.py で同じ内容を追記するが、ページはこのファイルから作る (日報側の欄は読まない)。
 """
 import argparse
 import json

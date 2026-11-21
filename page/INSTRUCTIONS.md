@@ -1,10 +1,10 @@
 # ページ更新の手順書
 
 毎朝の定期タスク「KEDA Daily Digest ページ更新」が読む手順書です。
-作業場所は、タスクの指示どおりに用意した `repo/` (main、読むだけ) と `viewer/` (page-viewer ブランチ) です。
+作業場所は、タスクの指示どおりに用意した `repo/` (main。手順 7 の「実践欄の追記」以外では読むだけ) と `viewer/` (page-viewer ブランチ) です。
 
 読者はセキュリティエンジニア 1 名 (脆弱性診断・ペネトレーションテスト・ソースコード診断が本業)。スマホで朝 5 分で読む。
-**英語の記事は読めないので、原文を開かなくても中身が分かる日本語で書く。** 日報の全文は GitHub に残るので、ページは「少なく・実践寄り」にする。
+**英語の記事は読めないので、原文を開かなくても中身が分かる日本語で書く。** 日報の全文は GitHub に残るので、ページは「少なく・実践寄り」にする。ページにだけあって GitHub に無い内容を作らないよう、「バグバウンティ・実践」欄は手順 7 で GitHub の日報にも同じ内容を書き込む。
 
 ## 守ること
 
@@ -137,15 +137,39 @@ git commit -m "page: <today> の選定データ"
 git push origin page-viewer
 ```
 
-- push してよいのは `page/data/` (と、公開に失敗したときの `page/latest.html`) だけ。`main` には push しない。
+- このブランチに push してよいのは `page/data/` (と、公開に失敗したときの `page/latest.html`) だけ。`main` への push は手順 7 の 1 回だけ。
 - push が権限で断られた場合: `add_repo` というツールがあれば owner `yuui25`、repo `keda-security-daily-digest`、access `push` で呼んでから 1 回だけ再試行する。それでも駄目なら、あきらめて報告に書く。
 - 競合したら `git pull --rebase origin page-viewer` してから再 push。
 
-## 7. 最後の報告 (短く)
+## 7. 日報 (GitHub の main) にも実践欄を書き込む
 
-次だけを書く。作業経過の説明は不要。
+ページと GitHub の内容をそろえるため、手順 3 で作った実践欄を、今日の日報の Markdown にも入れる。文章は書き直さず、必ず次の道具で変換する。
+
+```
+cd viewer
+python3 -I page/bounty_to_md.py --digest ../repo/digests/<YYYY>/<MM>/<today>_security_digest.md \
+  --bounty page/data/<today>_bounty.json
+cd ../repo
+git config user.email "agent@anthropic.com" && git config user.name "keda-digest-bot"
+git status --short
+git add digests/<YYYY>/<MM>/<today>_security_digest.md
+git commit -m "digest: <today> バグバウンティ・実践を追記"
+git push origin HEAD:main
+```
+
+- 道具は、日報の末尾 (「取得状況」の折りたたみの前) に `<!-- bounty:start -->` 〜 `<!-- bounty:end -->` で囲んだ「## バグバウンティ・実践」欄を入れる。すでにあれば置き換えるので、何度実行しても 1 つだけ残る。`unchanged` と出たら commit / push は不要。
+- **`main` で変更してよいのは、手順 1 で使った日報 1 ファイルの、この欄だけ。** `git status --short` にそれ以外のファイルが出たら、commit せずに原因を報告に書く。日報のほかの部分を手で直さない。`page/bounty_to_md.py` は変更しない。
+- 手順 1 で「今日の日報が無く、古い日報で代用した」場合は、**この手順を飛ばす** (別の日の日報に今日の実践欄を入れない)。報告にその旨を書く。
+- 実践欄が 0 件の日も実行する (「該当なし」の 1 行が入る)。
+- push が競合したら `git pull --rebase origin main` してから 1 回だけ再 push。権限で断られた場合は手順 6 と同じ対処をする。force push、`--no-verify` は禁止。
+- この手順は、ページの公開 (手順 5) と選定データの保存 (手順 6) のあとに行う。失敗してもページは更新済みなので、やり直さずに報告に書く。
+
+## 8. 最後の報告 (短く)
+
+タスクの指示に最後のメッセージの形式が書かれている場合は、そちらに従う。無ければ次だけを書く。作業経過の説明は不要。
 
 - ページを更新できたか (どの日付の日報か)
 - 載せた件数: 実践 n 件 / AI n / AI セキュリティ n / セキュリティ n / 国内 n
 - 実践欄に載せたライトアップの見出し (pick: true のもの) と、その取得先
+- GitHub の日報に実践欄を書き込めたか
 - 問題があった点 (取得できなかった巡回先、公開や push の失敗、実践欄が 0 件だった理由)
