@@ -353,6 +353,50 @@ AI では、Google が **Gemini 4 Neon** (入力 3 ドル / 出力 15 ドル、1
 - **なぜ重要か**: CODE BLUE (11/17〜18) の後に、参加者による技術の記録が出始めた。SQL インジェクションの 2 本は、ORM や BI ツールでも SQL インジェクションが起きることを社内の勉強会で説明するときの材料になる。
 - 出典: [Zenn (CODE BLUE CTF)](https://zenn.dev/taksecbe/articles/codeblue2026-htb-ctf) / [Zenn (SQLi)](https://zenn.dev/vasugiura/articles/f743fd2cd501e4) / [Zenn (NewsPicks)](https://zenn.dev/tetsurou/articles/newspicks-metabase-security-incident-analysis)
 
+<!-- bounty:start -->
+## バグバウンティ・実践
+
+> 実際の脆弱性報告・ライトアップから、次の診断で試せる学びを日本語で解説する欄。公開から 7 日以内のものが対象 (採用範囲の 2 日間とは別)。定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。
+
+### [2026-11-18] ケルビン記号 (U+212A) を 1 文字混ぜるだけで、Fastify のパス指定の認証ミドルウェアを素通りしてハンドラに届く
+- **種類**: 認可回避 / 正規化の不一致
+- **対象**: Node.js の Fastify で Express 形式のミドルウェアを使うための公式プラグイン `@fastify/middie` (9.3.6 以前、修正は 9.3.7)。CVE-2026-132128、CVSS 7.4 (High)。報告者は rootsys-research 氏で、GitHub のアドバイザリとして 11/18 に公開された。
+- **手口の肝**: 条件は、アプリがルーティングを `caseSensitive: false` (大文字・小文字を区別しない) にしていて、`/api/keys` のように ASCII の `k` を含むパスへ認証用のミドルウェアを掛けていること。Fastify のルーターは `toLowerCase()` でパスを畳むので、ケルビン記号 U+212A が普通の `k` になる。一方 middie は `caseSensitive` の設定を読まず、ASCII しか畳まない正規表現でマウント先を照合していた。**同じパスを 2 つの層が別々のやり方で正規化していた**のが原因。
+- **影響の広げ方**: パスの `k` を、ケルビン記号をパーセントエンコードした `%E2%84%AA` に置き換えると、ルーターは本来のハンドラへ届けるのに、ミドルウェアは「自分のパスではない」と判断して動かない。認証・認可・レート制限をパス指定のミドルウェアだけに頼っている API は、未認証で叩ける。既定 (大文字・小文字を区別する) の構成は影響を受けない。同じ日に middie では、重複スラッシュなど同型の回避も別のアドバイザリで直されている (そちらの本文は今回読めていない)。
+- **自分の診断で試すこと**:
+  - Node 系の API で、保護されたパスの大文字・小文字を変えても同じ応答が返るか (= case-insensitive なルーティングか) を最初に確かめる
+  - 区別しない構成なら、保護されたパス中の `k` を `%E2%84%AA` に替えて未認証で送る。401/403 ではなくハンドラ本来の応答 (200 や検証エラー) が返れば当たり
+  - ソースを見られるなら、認証を `app.use('/path', ...)` 型のパス指定ミドルウェアで掛けていないかを grep する。ルーティング後に走る `preHandler` フックで掛けているなら、この種のずれは起きない
+- 出典: [GitHub Advisory GHSA-r5h5-r25j-5vhr (fastify/middie)](https://github.com/fastify/middie/security/advisories/GHSA-r5h5-r25j-5vhr)
+
+### [2026-11-18] 「一時テーブルを作れるだけ」の DB アカウントから、PostgreSQL・MySQL・ClickHouse のサーバーで OS コマンドを実行する
+- **種類**: DB 権限 / RCE / メモリ破壊
+- **対象**: PostgreSQL (CVE-2026-116331)、MySQL (CVE-2026-101786)、ClickHouse (CVE なし)。Depthfirst の Zheng Yu 氏の研究記事。主張は「GRANT が絞るのはテーブルなどの論理的な対象だけで、許された SQL から届く C/C++ のエンジン内部は絞れない」。報奨金の記載はない。
+- **手口の肝**: どれも入口は、業務テーブルを 1 つも読めないアカウントに残っている「セッション内だけの機能」。**PostgreSQL**: 既定で PUBLIC に付く `TEMPORARY` 権限で、自分の一時スキーマに `SORTOP` 付きの集約 (`CREATE AGGREGATE`) を作る。プランナーの MIN/MAX 向けの近道が `FINALFUNC` を飛ばすため、整数の値がポインタとして読まれる (型の取り違え)。**MySQL**: `CREATE TEMPORARY TABLES` だけで、プリペアドステートメントのウィンドウ関数 `BIT_OR` に、準備時の想定 (511 バイト) より長い BLOB を実行時に渡す。境界チェックはデバッグ用の assert だけで、リリース版では消えていた。**ClickHouse**: HTTP のクエリ文字列で `format_binary_max_string_size=0` を指定すると長さの上限が外れ、RowBinary 形式の文字列長の足し算が桁あふれしてヒープを壊す。
+- **影響の広げ方**: 3 つとも、メモリ破壊から DB のサービスアカウント (postgres / mysql / clickhouse) でのコード実行まで進めたとしている。PostgreSQL の手口は 64 ビット版が前提。記事に載っているのは骨組みだけで、成功率や失敗した試みは書かれていない。Oracle の「ログイン不要の連鎖」(CVE-2026-114819 + CVE-2026-91609) は、仕組みの説明がなく CVE と勧告へのリンクだけなので、この記事からは評価できない。ClickHouse は修正版が示されていない。
+- **自分の診断で試すこと**:
+  - SQL インジェクションや読み取り専用の DB 資格情報を得たとき、「権限が低いから影響は小さい」で止めない。PostgreSQL なら `has_database_privilege(current_user, current_database(), 'TEMPORARY')`、MySQL なら `SHOW GRANTS` で `CREATE TEMPORARY TABLES` の有無を確かめ、版と合わせて報告書に書く
+  - 版の確認: PostgreSQL は 18.7 / 17.12 / 16.16 / 15.20 / 14.25 より前、MySQL は 26.7.0〜26.7.1 が対象 (版の範囲は The Hacker News の記事で確認)。該当すれば「DB アカウントの侵害が DB サーバーの OS の侵害に直結する」と評価を上げる
+  - ClickHouse の HTTP インターフェイス (既定 8123/tcp) で、一般のアカウントがクエリ文字列から設定値を変えられるか (設定を readonly にしているか) を見る。変えられるなら指摘する
+- 出典: [Depthfirst (Zheng Yu)](https://depthfirst.com/research/narrow-grants-wide-engines) / [The Hacker News](https://thehackernews.com/2026/11/researcher-demonstrates-database-rce.html)
+
+### [2026-11-15] Microsoft Defender for macOS: ハードリンクで root 専用ファイルを読み、接続後の exec で呼び出し元の検査をすり抜けて root を取る
+- **種類**: LPE / TOCTOU / Confused Deputy
+- **対象**: Microsoft Defender for macOS の root 常駐プロセス `wdavdaemon`。CVE-2026-50657 (root での任意ファイル読み取り) と CVE-2026-50658 (競合状態による権限昇格)。spaceraccoon 氏のブログ。7 月の月例更新で修正済みで、9 月の BlueHat Asia で発表した内容の詳細版。報奨金と対象の版は書かれていない。
+- **手口の肝**: デーモンは誰でも接続できる (モード 0666) UNIX ソケットを 2 つ持ち、相手の確認を「接続時に取った PID → あとでその PID の実行ファイルのパスを調べ、Defender の配下か・署名は正しいか」で行っていた。**1 つ目**: 診断ファイルを集める命令は権限の確認そのものがなく、利用者のログフォルダにある通常ファイルを root の権限で ZIP に入れる。シンボリックリンクは除いていたが、ハードリンクは「通常ファイル」に見えるので、root しか読めないファイルへのハードリンクを置くと中身が入る。**2 つ目**: 隔離からの復元の命令は、認可情報が「無い」とき確認を丸ごと飛ばしていた (不正な値なら拒否するのに、欠けていると通す)。
+- **影響の広げ方**: 接続した直後に、自分のプロセスを Microsoft の署名付きヘルパーへ `exec` で置き換えると、PID は同じままパスだけが正規のものに変わり、相手確認を通る。復元で得られるのは「root としてファイルを新しく作る」だけで、上書きはできない。LaunchDaemon の plist を置く案は、所有者の条件と起動のきっかけが無いため失敗した。最終的には、標準で入っている古い cron の launchd ジョブが `/etc/crontab` の出現を監視していることを使い、約 1 分で root の実行に変えた。
+- **自分の診断で試すこと**:
+  - 特権で動くヘルパーやデーモンの IPC (UNIX ソケット、XPC) を列挙し、ソケットのモードと「呼び出し元をどう確かめているか」を読む。PID → パスの順で確かめていたら、接続後の exec ですり抜けられる候補。監査トークンと署名要件を接続に結び付けているのが正しい形
+  - root が利用者の書けるフォルダを読む・固める処理 (診断の収集、ログの回収、バックアップ) を探し、ハードリンクを置いて中身が出力に入るかを自分の端末で確かめる。開いたあとの fd で所有者とリンク数を見ていなければ当たり
+  - 認可のトークンや署名の欄を「不正な値」ではなく「欄ごと無し」で送り、拒否されるかを見る。Web API の診断でもそのまま使える観点 (署名や検証用の項目を消すと検証ごと飛ぶ fail-open)
+- 出典: [Spaceraccoon's Blog](https://spaceraccoon.dev/race-against-the-machine-defender-macos-lpe/)
+
+### そのほかのライトアップ
+
+- **[2026-11-18] Unreal Engine 5.9 Preview の MCP サーバーには認証がなく、「localhost だけ」は本人確認の代わりにならない** (MCP / 設計レビュー): 公式ドキュメントをもとにした設計上の指摘。MCP サーバーは既定で `127.0.0.1:8000` に自動で立ち上がり、認証の層がないので、同じ端末の別プロセスや許可オリジンのページから Editor のツールを呼べる。著者自身が「実機での再現や通信の試験はしていない」と明記しているので、確かめた事実ではなく観点として読む。 出典: [Zenn (heftykoo)](https://zenn.dev/heftykoo/articles/c6a9a22b7885c9)
+
+<!-- bounty:end -->
+
 ---
 
 <details><summary>取得状況 (デバッグ用)</summary>

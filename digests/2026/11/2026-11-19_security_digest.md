@@ -327,6 +327,40 @@ AI セキュリティでは、**Microsoft Agent Framework の PyPI パッケー�
 - **なぜ重要か**: 1 本目は、本号の CVE 表の HyperFrames (CVE-2026-130843) と同じ「localhost の開発用サーバーは、ブラウザ経由と DNS rebinding で外から届く」話になる。2 本目は、arXiv の「LLM のハニーポット vs LLM の攻撃者」(2611.22589) と同じ問題意識を持つ。
 - 出典: [Zenn (Unreal MCP)](https://zenn.dev/heftykoo/articles/c6a9a22b7885c9) / [Zenn (デセプション)](https://zenn.dev/masuda_masuo/articles/2026-11-18-ai-deception-lab)
 
+<!-- bounty:start -->
+## バグバウンティ・実践
+
+> 実際の脆弱性報告・ライトアップから、次の診断で試せる学びを日本語で解説する欄。公開から 7 日以内のものが対象 (採用範囲の 2 日間とは別)。定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。
+
+### [2026-10-27] 決済のリダイレクト用ページの DOM XSS から、1 クリックでアカウント乗っ取り
+- **種類**: DOM XSS / ATO / 書式の見本
+- **対象**: VPN・ウォレット系の顧客ポータル (ホスト名は伏せ字)。報告者は cyrusthedev 氏。
+- **手口の肝**: 決済ゲートウェイへ飛ばすだけの薄い HTML (`pay-redirect.html`) が、クエリの `gatewayUrl` をそのまま `window.location.replace()` に渡していた。スキームとホストの許可リストがなく、CSP も効いていないため、https 以外のスキームを渡すとショップのオリジンでスクリプトが動く。
+- **影響の広げ方**: セッションの JWT が `localStorage.accessToken` にあったので、読み出して別ブラウザで再利用するとウォレット画面に入れた。`GET /api/accounts` の応答には VPN アカウントのパスワード欄まで含まれていた。同じファイルが別ドメインにもあったが、`localStorage` はオリジンごとなので、トークンのあるドメイン側で動かす必要がある。
+- **自分の診断で試すこと**:
+  - 決済・OAuth・ログイン後の「飛ばすだけ」の HTML を探し、クエリの URL が `location.replace` / `assign` / `href` にそのまま入っていないか JS を読む
+  - オープンリダイレクトで止めず、https 以外のスキームが通るかを自分のアカウントで確かめる
+  - トークンの置き場所 (`localStorage` か HttpOnly Cookie か) と、API 応答に余計な秘密が入っていないかを見て、影響を `alert` より先まで示す
+- 出典: [GitHub (cyrusthedev)](https://github.com/cyrusthedev/Dom-XSS-Leads-to-ATO-Writeup)
+
+### [2026-11-18] 衣川正人氏が PortSwigger Research に寄稿: innerHTML で `=` が使えなくても JavaScript を実行する
+- **種類**: XSS / フィルタ回避
+- **何の話か**: Gareth Heyes 氏が 2020 年に「JavaScript の実行は不可能」とした課題のうち、「innerHTML の文脈で `=` を使えない」注入を解いた解説。
+- **自分の診断で試すこと**:
+  - 「`=` を落としているので属性が書けず安全」と判断した過去の指摘や、「悪用は困難」と書いた報告を見直す
+  - 手法の中身は原文で確認する (この欄は日報の要約に基づく)
+- 出典: [PortSwigger Research](https://portswigger.net/research/achieving-the-impossible-xss-in-innerhtml-without-equals)
+
+### そのほかのライトアップ
+
+- **[2026-11-19] One Click Full Control: CSPT (クライアント側のパストラバーサル) で組織の設定を書き換える** (CSPT / 見出しのみ) 出典: [Medium (CaptinSHArky)](https://medium.com/@mahdisalhi0500/one-click-full-control-exploiting-cspt-to-modify-organization-f646cb29b9e6)
+- **[2026-11-19] Your API Key Is Not a Secret: 漏れた Google API キーを報奨金につなげる方法** (秘密情報の漏えい / 見出しのみ) 出典: [Medium (Realrio)](https://medium.com/@Realrio/your-api-key-is-not-a-secret-how-i-turn-leaked-google-keys-into-bug-bounty-payouts-ac65c375e3af)
+- **[2026-11-19] Your MCP Server Is a Confused Deputy: MCP 連携のペンテスト (検証用サーバーへの 6 つのテスト)** (MCP / 見出しのみ) 出典: [Medium (Muhammad Midhlaj)](https://midhlaj.medium.com/your-mcp-server-is-a-confused-deputy-pentesting-model-context-protocol-integrations-0acaad156495)
+- **[2026-11-19] One-Click Account Takeover via DOM XSS: 公開されたままのテストランナーが入口に** (DOM XSS / ATO / 見出しのみ) 出典: [Medium (Forlay)](https://medium.com/p/f0f826c4f74f)
+- **[2026-11-19] CVE-2026-133309: @scalar/typebox のコードインジェクション (週 250 万 DL)** (Code Injection / 見出しのみ) 出典: [Medium (Absar Ansari)](https://medium.com/@Absar_Ansari_R0zoro/cve-2026-133309-code-injection-in-scalar-typebox-2-5-million-weekly-downloads-4b73bd1b83e0)
+
+<!-- bounty:end -->
+
 ---
 
 <details><summary>取得状況 (デバッグ用)</summary>
