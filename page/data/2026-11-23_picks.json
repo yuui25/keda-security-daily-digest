@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["Perplexity and Intelligence", "リーマン予想"],
+  "aisec": ["OpenRouter", "Together AI", "heredoc"],
+  "sec": ["GoodCloud", "Rackspace Spot", "Cleverbridge", "certifi"],
+  "cve": [],
+  "jp": ["タワーレコード", "メルカリグループ", "loguru"],
+  "jvn": []
+}

@@ -1,0 +1,181 @@
+{
+  "id": "bb",
+  "title": "バグバウンティ・実践",
+  "items": [
+    {
+      "date": "11/21",
+      "pick": true,
+      "title": "Dokploy: 記号を止めただけの修正は「最初の語」を見ておらず、compose のコマンド欄に `run` で始まる文字列を入れるだけで、一般メンバーがホストの root に届く",
+      "tags": [
+        "Command Injection",
+        "修正の回避",
+        "権限昇格"
+      ],
+      "fields": [
+        {
+          "label": "対象",
+          "inline": false,
+          "text": "セルフホスト型の PaaS「Dokploy」の、compose サービスの任意入力欄 `command`。Ostorlab が 11/21 に、同日 oss-security に出た研究者の報告をソースで追って解説した。影響は 0.29.13〜0.31.4 (記事時点の最新) で、**修正版も CVE もまだ無い**。CVSS 9.9 は報告者の自己評価。",
+          "sub": []
+        },
+        {
+          "label": "手口の肝",
+          "inline": false,
+          "text": "8 月の CVE-2026-72884 (同じ欄のコマンドインジェクション) は、0.29.13 で `sanitizeCommand` という検査を足して直した。この検査は、シェルの制御文字を正規表現で拒否し、`&&` でつないだ後ろの部分が `docker compose ` で始まることを確かめる。しかし**先頭の語は確かめていない**。検査を通った文字列は `getBuildComposeCommand` が固定の `docker` の後ろにそのまま並べ、`execAsync` (Node の `child_process.exec`、つまり `/bin/sh`) で実行する。そのため、記号を 1 つも使わずに `compose` の代わりに `run` で始まる文字列を入れると、`docker run ...` として動く。",
+          "sub": []
+        },
+        {
+          "label": "影響の広げ方",
+          "inline": false,
+          "text": "必要なのは `service:create` の権限と、compose サービス 1 つへのアクセスだけ (既定のメンバーの役割が持つ)。Dokploy のサーバーは root で動き、標準の導入では `/var/run/docker.sock` をマウントしているので、ホストの `/` をマウントしたコンテナを root で起動でき、ホストのファイルと Docker デーモンに届く。研究者は自分の環境でホストに root 所有のファイルを書けることを確かめた。生の compose ファイルが `privileged: true` などを通すという 2 つ目の経路も報告されているが、Ostorlab は未検証としている。",
+          "sub": []
+        },
+        {
+          "label": "自分の診断で試すこと",
+          "inline": false,
+          "text": "",
+          "sub": [
+            "Docker のソケットを握る管理画面 (Dokploy、Coolify、CapRover、Portainer、CI の画面など) で、**利用者の入力が `docker` や `kubectl` の引数になる欄**を探す。記号を使わず、サブコマンドやオプションを変えるだけの値 (ボリュームの指定、`--privileged` など) が通るかを見る。エラーにならずデプロイのログに別のサブコマンドの出力が出れば当たり。",
+            "コマンドインジェクションの修正の diff を読むときは、「記号の拒否リスト」だけで直していないかを確かめる。先頭の語の許可リストや、引数を配列で渡す実装 (シェルを通さない) になっていなければ、引数の注入が残っている可能性が高い。",
+            "同じ機能に入口が 2 つ (フォームの欄と、ファイルの丸ごとのアップロードなど) ある場合、片方にだけある検査 (`privileged`、`cap_add`、ホストのマウントの拒否) を、もう片方から送って通るかを比べる。"
+          ]
+        }
+      ],
+      "sources": "[Ostorlab (Ostorlab Team)](https://blog.ostorlab.co/dokploy-compose-command-host-root.html)"
+    },
+    {
+      "date": "11/20",
+      "pick": true,
+      "title": "NukeViet CMS: SVG の検査は「エンティティを展開せずに要素だけ」見ていたので、内部 DTD のエンティティに隠したスクリプトが素通りし、問い合わせ欄では `/onerror` の形の属性が拒否リストを抜けた",
+      "tags": [
+        "Stored XSS",
+        "SVG",
+        "フィルター回避"
+      ],
+      "fields": [
+        {
+          "label": "対象",
+          "inline": false,
+          "text": "ベトナム発の CMS「NukeViet」。SVG のアップロードの検査 (CVE-2026-94567、4.5.12 と 4.6.02 で修正) と、Contact モジュールのメッセージ (CVE-2026-94565、4.6.01 で修正) の 2 件で、どちらも 11/20 公開、CVSS 3.1 は 9.3。報告者の名前は読んだページには無かった。",
+          "sub": []
+        },
+        {
+          "label": "手口の肝",
+          "inline": false,
+          "text": "**SVG 側**: `NukeViet\\Files\\Upload::check_svg_tmpfile()` は文書をエンティティを展開しない設定で読み込むので、内部 DTD で定義したエンティティは「エンティティ参照」のノードのまま残る。続く `sanitize_svg_dom()` は要素のノードしか調べないので、エンティティの中に書いたマークアップは検査されない。しかも SVG は `verify_image()` の前に処理が終わり、元のバイト列のまま保存される。配信は `image/svg+xml` なので、ブラウザがエンティティを展開してスクリプトを実行する。**Contact 側**: `NukeViet\\Core\\Request::filterTags()` は属性を ASCII の空白でしか区切らないので、`/onerror` をひとつの属性名とみなし、`on` で始まる名前の拒否リストに当たらない。ブラウザはスラッシュを区切りとして扱い、`onerror` が動く。",
+          "sub": []
+        },
+        {
+          "label": "影響の広げ方",
+          "inline": false,
+          "text": "SVG は、モジュールのコメントが「全員」か「ゲスト」に開かれ、添付の許可 (`allowattachcomm`) が有効なら、**ログインなしで**置ける (モジュール管理者のファイル管理からも置ける)。Contact のメッセージは未認証で送れ、管理画面では出力時のエスケープなしで表示され、CSP も無いので、**管理者が開いた時点で管理画面と同じオリジンでスクリプトが動く**。どちらも、被害者が開くという操作が要る。",
+          "sub": []
+        },
+        {
+          "label": "自分の診断で試すこと",
+          "inline": false,
+          "text": "",
+          "sub": [
+            "SVG のアップロードを受け付ける機能では、`<script>` やイベント属性を直接書いた SVG が拒否されたあとに、**内部 DTD のエンティティに無害な目印の要素を入れた SVG** を送る。保存されたファイルを直接開き、エンティティが展開されて目印が描画されれば、検査側は展開前を見ていて、ブラウザ側は展開後を見ている (検査の抜け)。あわせて、配信の `Content-Type` が `image/svg+xml` か、`Content-Disposition: attachment` や CSP が付くかを見る。",
+            "HTML を一部許す入力欄 (問い合わせ、コメント、プロフィール) で、属性名の前に `/` や改ページなど「ブラウザは区切りとして扱うが、サーバー側の分割は区切りとして扱わない文字」を置いた属性を送り、保存後の HTML にイベント属性がそのまま残るかを見る。",
+            "未認証で送れるフォームの内容が、**管理画面でどう表示されるか**まで追う。利用者向けの画面でエスケープされていても、管理者向けの一覧や詳細でそのまま出れば、管理者権限の乗っ取りにつながる。"
+          ]
+        }
+      ],
+      "sources": "[Strix: CVE-2026-94567](https://www.strix.ai/cve/CVE-2026-94567) / [Strix: CVE-2026-94565](https://www.strix.ai/cve/CVE-2026-94565)"
+    },
+    {
+      "date": "11/21",
+      "pick": true,
+      "title": "WordPress の Restrictions for BuddyPress: リクエストの URI をダブルクォートの文字列に入れて `eval()` していたので、クォートを閉じなくても、ログインなしの GET 1 回で PHP が動く",
+      "tags": [
+        "Code Injection",
+        "PHP eval",
+        "未認証 RCE"
+      ],
+      "fields": [
+        {
+          "label": "対象",
+          "inline": false,
+          "text": "WordPress のプラグイン「Restrictions for BuddyPress」(スラッグは `bp-restrict`、seventhqueen 製) の 1.5.4 以前。CVE-2026-120539、CVSS 3.1 は 9.8。CVE の採番は Wordfence で、発見者は「snr」。9/30 に開発元へ通知され、11/20 に公表、対応版は 1.5.5。BuddyPress と Paid Memberships Pro の両方が有効なサイトが対象。",
+          "sub": []
+        },
+        {
+          "label": "手口の肝",
+          "inline": false,
+          "text": "プラグインは、リクエストの URI を、ダブルクォートで囲んだ文字列の PHP の式に埋め込み、それを `eval()` に渡していた (該当箇所は `includes/class-bp-restrict.php` など)。PHP はダブルクォートの文字列を組み立てる時点で、`{$...}` の形の複雑な構文を式として評価する。そのため攻撃者は**クォートを閉じる必要がなく**、URI に式を書くだけで実行される。WordPress は入力のクォートとバックスラッシュにスラッシュを付けるが、文字列の外に出ない攻撃なので、この守りは効かない。",
+          "sub": []
+        },
+        {
+          "label": "影響の広げ方",
+          "inline": false,
+          "text": "問題の条件は既定で有効で、ログイン済みかどうかを確かめる前に評価されるので、未認証の GET 1 回で成立する。11/23 時点で KEV には入っていないが、PoC を名乗る公開物が検索結果に出ている (中身は読んでいない)。",
+          "sub": []
+        },
+        {
+          "label": "自分の診断で試すこと",
+          "inline": false,
+          "text": "",
+          "sub": [
+            "ソースコード診断では、PHP のプラグインやテーマを `eval(` で検索し、渡す文字列がダブルクォートで、`$_SERVER['REQUEST_URI']` やクエリの値が混ざっていないかを見る。`addslashes` 相当の処理があっても、`{$` を止めていなければ安全ではない。",
+            "対象サイトで `/wp-content/plugins/bp-restrict/` の `readme.txt` などから版を確かめ、1.5.4 以前で BuddyPress と Paid Memberships Pro が有効なら、未認証の RCE として報告する (実行までは試さず、版と構成で判定する)。",
+            "侵害の有無を見る場合は、アクセスログで URL エンコードされた波かっこや PHP らしい断片を含む URI を探し、アップロードやキャッシュのディレクトリの見慣れない `.php`、新しい管理者、mu-plugins と cron の変更を確かめる。"
+          ]
+        }
+      ],
+      "sources": "[OpenCVE: CVE-2026-120539](https://app.opencve.io/cve/CVE-2026-120539) / [HOL Guard](https://hol.org/guard/security/cves/CVE-2026-120539-restrictions-for-buddypress-154-unauthenticated)"
+    },
+    {
+      "date": "11/22",
+      "pick": false,
+      "title": "Dokploy: データベースのパスワード変更がバッククォートを通し、メンバー権限からサーバーのプロセス (多くは root) でコマンド実行 (CVE-2026-129987、0.31.1 で修正)",
+      "tags": [
+        "Command Injection"
+      ],
+      "fields": [
+        {
+          "label": "ひとことで",
+          "inline": false,
+          "text": "MySQL、PostgreSQL、MariaDB、MongoDB、Redis の `changePassword` で、新しいパスワードをダブルクォートの中に入れてシェルに渡していた。検査はバッククォートを拒否しておらず、`service:create` を持つメンバーがコマンド置換で実行できた。0.31.1 は検査を変えず、引数をすべて引用の関数に通す形で直した。パスワード欄のような「記号を許したい入力」がシェルに届く経路は、他の管理画面でも確かめたい。",
+          "sub": []
+        }
+      ],
+      "sources": "[Helix Threat Watch](https://helix.ml/threat-watch/i/dokploy-authenticated-member-can-get-root-rce-via-database-password-injection-cve-2026-129987)"
+    },
+    {
+      "date": "11/20",
+      "pick": false,
+      "title": "devpi-web: 文書を配信する `+doc` のルートが、パスを文書のディレクトリに閉じ込めておらず、未認証でパスワードハッシュ入りの sqlite を読める (CVE-2026-134167、5.2.0 で修正)",
+      "tags": [
+        "Path Traversal"
+      ],
+      "fields": [
+        {
+          "label": "ひとことで",
+          "inline": false,
+          "text": "社内の PyPI として使われる devpi の Web 画面で、`doczip.py` の `docs_file_exists` と `docs_file_path` が `relpath` を検査していなかった。先頭の `//` や、パーセントエンコードした `..` で、keyfs の sqlite (パスワードハッシュを含む) などサーバー上のファイルを読める。CVSS 3.1 は 7.5。診断先に devpi があれば、版が 5.2.0 以上かを確かめる。",
+          "sub": []
+        }
+      ],
+      "sources": "[Strix: CVE-2026-134167](https://www.strix.ai/cve/CVE-2026-134167) / [HOL Guard](https://hol.org/guard/security/cves/CVE-2026-134167-devpi-web-before-520-unauthenticated-path)"
+    },
+    {
+      "date": "11/21",
+      "pick": false,
+      "title": "Rust の actix-files: 「`.` で始まるファイルは出さない」検査を、Windows の 8.3 形式の短い名前 (`ENV~1`、`GIT~1`) で抜けて `.env` や `.git` を読める (CVE-2026-134347、0.7.4 で修正)",
+      "tags": [
+        "情報漏えい",
+        "パスの解釈の差"
+      ],
+      "fields": [
+        {
+          "label": "ひとことで",
+          "inline": false,
+          "text": "`actix_files::Files` は、要求された名前の先頭が `.` かどうかだけを見ていた。Windows では短い名前の別名が同じファイルを指すので、検査を通ったあとでファイルシステムが隠しファイルに解決する。未認証で成立し、CVSS 3.1 は 7.5。Windows で動く静的ファイルの配信では、言語を問わず同じ確認 (短い名前で `.env` や `.git/config` が返らないか) をする価値がある。",
+          "sub": []
+        }
+      ],
+      "sources": "[Strix: CVE-2026-134347](https://www.strix.ai/cve/CVE-2026-134347) / [RustSec advisory-db PR #3507](https://github.com/rustsec/advisory-db/pull/3507)"
+    }
+  ]
+}
