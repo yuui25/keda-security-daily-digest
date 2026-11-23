@@ -245,6 +245,52 @@ CVE では、**Xen Orchestra の悪用中の認証回避に CVE-2026-133469 が�
 - **なぜ重要か (評価)**: どれも一次情報ではないが、診断の報告書で「読み取り専用だから低リスク」と書かれがちな指摘を見直す材料や、連休明けにパッチの適用の状況を確かめる手順として使える。
 - 出典: [Zenn hackbox_ai (2026-11-23)](https://zenn.dev/hackbox_ai/articles/9df8658d7b187c) / [Zenn quantumaisafe (2026-11-23)](https://zenn.dev/quantumaisafe/articles/079d0a658a2417) / [Zenn kent_code (2026-11-23)](https://zenn.dev/kent_code/articles/bef81d6a0b817c)
 
+<!-- bounty:start -->
+## バグバウンティ・実践
+
+> 実際の脆弱性報告・ライトアップから、次の診断で試せる学びを日本語で解説する欄。公開から 7 日以内のものが対象 (採用範囲の 2 日間とは別)。定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。
+
+### [2026-11-23] CSRF 対策モジュール Idunno.AntiCsrf: フォームのトークンを「検証する前に」鍵なしでデシリアライズしていたので、正しいトークンなしの POST 1 回でサーバー上のコード実行になる (悪用確認済み・修正版なし)
+- **種類**: Deserialization / RCE / ASP.NET
+- **対象**: ASP.NET WebForms 向けの古い CSRF 対策モジュール **Idunno.AntiCsrf** (Cookie とフォームの値を突き合わせる二重送信方式。旧 CodePlex で公開され、2008 年 12 月から更新なし)。Google Cloud の FLARE と Mandiant のインシデント対応チームが調査の中で特定し、11/18 に勧告 MNDT-2026-0048 を出した。CVE-2026-131914、CVSS 4.0 で 9.3。Mandiant は実際の悪用を確認したとしているが、攻撃者や被害の規模は公表していない。保守者がおらず、修正版は出ない。
+- **手口の肝**: `Idunno.AntiCsrf.AntiCsrfModule` は、POST で届いた CSRF 用のフォームフィールドの値を、鍵を付けない `ObjectStateFormatter` で復元していた。MAC・署名・暗号化・machineKey による検証がなく、復元してよい型の制限もない。しかも **Cookie とフォームの値の突き合わせは復元のあと**に行われる。そのため、設定された CSRF 用 Cookie に空でない値があれば足り、正しいトークンを知っている必要がない。
+- **影響の広げ方**: モジュールはページの処理 (`Page_Load`) より前に動く。匿名で届く `.aspx` はもちろん、**ログインの確認を `Page_Load` の中で行っているページ**も対象になり、サーバー側のフォームがないページでも成立する。コードは IIS のワーカープロセス `w3wp.exe` の権限で動く。IIS のパイプラインの認証・認可で匿名のリクエストを先に止めている構成では入口が狭まる (閉じるとは限らない)。トークンを読む時点で検証していないので、machineKey を入れ替えても直らない。
+- **自分の診断で試すこと**:
+  - 構成・ソースの確認: `Web.config` と `applicationHost.config` を `Idunno.AntiCsrf`、`AntiCsrfModule`、`csrfSettings` で検索し、`bin/` に `Idunno.AntiCsrf.dll` がないかを見る。1 つでも出れば、設定によらず指摘になる (安全な設定は存在しない)。対処は撤去と、`System.Web.Helpers.AntiForgery` や `ViewStateUserKey` + MAC 付き ViewState への置き換え。
+  - 同じ型を探す: 自前や古い部品の「検証用トークン」が、**検証より前にデシリアライズされていないか**を見る。.NET のソースでは `ObjectStateFormatter`、`LosFormatter`、`BinaryFormatter` の `Deserialize` を検索し、入力がリクエスト由来で、MAC の鍵なしで呼ばれていれば当たり。
+  - 侵害の有無を聞かれたとき: IIS のログで、`.aspx` への POST が 302 や 500 を返し、`cs-bytes` が不自然に大きいものを探す。アプリのログの `PotentialCsrfException` (通常の CSRF 失敗でも出る) と、`w3wp.exe` の見慣れない子プロセス、Web ルートの新しいファイルを合わせて確認する。エラーやリダイレクトが返っていても、復元はその前に済んでいる点に注意。
+- 出典: [The Hacker News](https://thehackernews.com/2026/11/hackers-exploit-critical-aspnet-anti.html) / [Rescana](https://www.rescana.com/post/idunno-anticsrf-cve-2026-131914-deserialization-rce-exploited-no-fix-remove-now) / [Cyber Security News](https://cybersecuritynews.com/asp-net-anticsrf-flaw-under-attack/)
+
+### [2026-11-22] Weblate: パスワードリセットが Unicode の大文字小文字を区別せずに利用者を探し、リンクを「入力されたアドレス」に送るので、よく似た別アドレスの持ち主が他人のアカウントを乗っ取れる
+- **種類**: ATO / Password Reset / Unicode
+- **対象**: OSS の翻訳管理ツール **Weblate** (2026.11 より前)。報告者は Zachariah Mithani 氏 (AploSec)。CVE-2026-134838 / GHSA-6hph-c9x9-4mcv。CVSS は 4.0 で 9.1、3.1 では 7.4。2026.11 で修正された。
+- **手口の肝**: `reset_password` のビューは、入力されたメールアドレスを Unicode の大文字小文字を区別しない照合で登録済みの利用者と突き合わせる。一致すると、リセットのリンクを**登録済みのアドレスではなく、入力されたアドレス**に送っていた。点のない i のように、大文字小文字の畳み込みで被害者のアドレスと同じ扱いになる別のアドレスを使うと、被害者あてのリンクが攻撃者に届く。公開情報は該当箇所として `weblate/accounts/forms.py` を挙げているが、照合の具体的な実装や DB への依存は書かれていない。
+- **影響の広げ方**: ログインなしで申請でき、届いたリンクで新しいパスワードを設定すれば乗っ取りが完了する。前提は、畳み込みで被害者のアドレスと一致する「そっくりなアドレス」のメールを、攻撃者が実際に受信できること (CVSS でも攻撃の条件は「高」と評価されている)。修正の中身 (PR #22506) の説明は、読んだページには無かった。
+- **自分の診断で試すこと**:
+  - パスワードリセット・メールアドレスの確認・招待で、**メールの宛先が「入力値」か「DB の登録値」か**を確かめる。自分の検証用アカウントで、大文字と小文字だけを変えたアドレスで申請し、届いたメールの To が入力どおりなら、この型の前段が成立している。
+  - 次に、点のない i (U+0131) やケルビン記号 (U+212A) など、畳み込むと ASCII の文字になる文字を混ぜたアドレスで申請し、「登録済み」として扱われるか (応答の違い、メール送信の有無) を見る。受信の確認は、自分で管理できるドメインの範囲で行う。
+  - ソース診断では、`email__iexact` のような大文字小文字を区別しない検索や、DB の照合順序に頼った検索のあとで、**フォームの入力値をそのまま送信先に使っていないか**を見る。送信先は必ず検索で得たレコードの値にする、が修正の方向。
+- 出典: [VulnCheck Advisory](https://www.vulncheck.com/advisories/weblate-before-2026.11-account-takeover-via-unicode-e-mail-matching-in-password-reset) / [Strix: CVE-2026-134838](https://www.strix.ai/cve/CVE-2026-134838) / [HOL Guard](https://hol.org/guard/security/cves/CVE-2026-134838-weblate-before-202611-account-takeover-via)
+
+### [2026-11-23] ZITADEL: 公開ホストを伝えるヘッダに「信頼済みホスト@攻撃者のホスト」の形を入れると検査を通り、パスワードリセットのメールのリンクが攻撃者のホストを指す
+- **種類**: Host Header Injection / ATO / Password Reset
+- **対象**: OSS の ID 基盤 (IdP) **ZITADEL** 4.19.5〜4.20.2。CVE-2026-135175 / GHSA-qvxq-53gh-64f6。CVSS は 4.0 で 8.6、3.1 で 8.1。発見者として Akshay-Arjun、lucasdodgson、yssoe、GrantZero604 の各氏が挙がっている。4.20.3 で修正された。
+- **手口の肝**: 通知メールに入れるリンクのホストは、`x-zitadel-public-host` ヘッダから決まる。このヘッダの値で、**信頼済みのホストを URL の userinfo の部分 (`@` の前) に置く**と、信頼済みホストの検査を通ってしまい、できあがるリンクは `@` の後ろの攻撃者のホストを指した。該当箇所として `internal/api/http/middleware/origin_interceptor.go` が挙げられている。検査がどう書かれていたかの詳細は、読んだページには無かった。
+- **影響の広げ方**: 攻撃者は被害者のログイン名を知っていれば、ログインなしで、細工したヘッダを付けてパスワードリセットを申請できる。被害者に届くメールのリンクには 1 回限りのコードが入っており、リンクが攻撃者のホストに向くので、コードが攻撃者に渡る (CVSS は利用者の操作が要ると評価している)。管理者を含むアカウントの乗っ取りにつながる。多要素認証を越えられるかは書かれておらず、2 要素認証の有効化が緩和策として挙げられている。
+- **自分の診断で試すこと**:
+  - パスワードリセット・招待・メール確認の申請に、`Host`、`X-Forwarded-Host`、`Forwarded`、製品独自の「公開ホスト」用ヘッダを付けて送り、**届いたメールのリンクのホストが変わるか**を見る。自分の検証用アカウントあてのメールで確認する。変われば当たり。
+  - ホストの許可リストがある場合は、許可されたホストを userinfo の位置に置いた形、ポートや末尾のドットを付けた形で、検査と実際のリンクの食い違いを探す。検査は通るのに、リンクのホストが許可リストの外になれば当たり。
+  - ソース診断では、ホストの検査が文字列の前方一致や「含む」ではなく、**URL として解析して取り出したホストの完全一致**になっているか、検査した値とリンクの組み立てに使う値が同じものかを確かめる。
+- 出典: [Strix: CVE-2026-135175](https://www.strix.ai/cve/CVE-2026-135175) / [OpenCVE: CVE-2026-135175](https://app.opencve.io/cve/CVE-2026-135175) / [OffSeq Radar](https://radar.offseq.com/threat/zitadel-4195-before-4203-contains-a-host-header-injection-vulnerability-that-allows-unauthenticated-50b1636a1c87705f)
+
+### そのほかのライトアップ
+
+- **[2026-11-23] PostgreSQL の JDBC ドライバ pgjdbc: アプリが正しくエスケープした文字列でも、ドライバ側のリテラルの読み違いで続きが SQL として実行される (2 件、42.7.15 で修正)** (SQL Injection): CVE-2026-134841 は、`{ts}` などの JDBC エスケープの中の `}`、非 ASCII や空白を含むタグのドル引用、`E''` 文字列、負の引数の `{fn right}` をパーサが読み違える。CVE-2026-134842 は `preferQueryMode=simple` のとき、セッションの途中で `standard_conforming_strings` が off になると引用がずれる。`allowEncodingChanges=true` で EUC_JP / SJIS の場合は円記号がバックスラッシュとして働く。既定の拡張クエリモードを使うことが回避策とされ、報告者は Anthropic の OSS スキャナ。 出典: [Strix: CVE-2026-134841](https://www.strix.ai/cve/CVE-2026-134841) / [Strix: CVE-2026-134842](https://www.strix.ai/cve/CVE-2026-134842) / [OpenCVE: CVE-2026-134842](https://app.opencve.io/cve/CVE-2026-134842)
+- **[2026-11-23] 監視カメラ用の Kerberos Agent: JWT の鍵が未設定だと固定の文字列に戻るので、誰でも管理者のトークンを作れる** (JWT / Hard-coded Key): `JWTMiddleWare()` が固定の鍵 `TOBECHANGED` に戻り、その鍵で署名した HS256 のトークンを、利用者名と役割が何であっても受け入れていた (CVE-2026-135208、3.14.4 で修正)。`/api` と `/config` から RTSP・ONVIF の資格情報や暗号鍵を読め、設定の書き換えもできる。診断では、JWT の鍵の「未設定のときの既定値」をソースや公開リポジトリで探す観点になる。 出典: [Strix: CVE-2026-135208](https://www.strix.ai/cve/CVE-2026-135208)
+- **[2026-11-23] Pomerium の MCP 用トークンエンドポイント: 認証方式を指定せずに登録したクライアントのシークレットを一度も照合しておらず、盗んだ認可コードやリフレッシュトークンを任意のシークレットで交換できた** (OAuth / MCP): `token_endpoint_auth_method` を省いた登録は `client_secret_basic` 扱いになるのに、Basic 認証のパスワードも、利用者名と `client_id` の一致も確かめていなかった (CVE-2026-135300、0.34.0 で修正)。修正のレビューでは、クエリ文字列の `client_secret` が混ざる経路も見つかり、方式ごとに決まった場所だけを読むように直された。OAuth のトークンエンドポイントは、でたらめなシークレットで交換が通らないかを必ず試す。 出典: [修正の PR #6787 (pomerium/pomerium)](https://github.com/pomerium/pomerium/pull/6787) / [FixLane](https://fixlane.poparecon.com/incidents/4363)
+
+<!-- bounty:end -->
+
 ---
 
 <details><summary>取得状況 (デバッグ用)</summary>
