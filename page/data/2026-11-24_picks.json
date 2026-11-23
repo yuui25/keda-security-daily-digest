@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["Claude Ship", "Agent Gateway"],
+  "aisec": ["ChatMate", "PreToolUse", "CERT-In"],
+  "sec": ["Mail Assure", "GoodCloud", "MONAI Label", "Project Zero"],
+  "cve": [],
+  "jp": ["Cuenote FC", "岡山県精神科医療センター", "読み取り専用の DB アカウント"],
+  "jvn": []
+}
