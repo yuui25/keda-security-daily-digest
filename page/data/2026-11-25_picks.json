@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["iFood", "Muse"],
+  "aisec": ["Shirudo", "Unit 42", "ツール呼び出しの密輸"],
+  "sec": ["別の vCenter", "Rapid7", "WHMCS", "CISA KEV に 3 件"],
+  "cve": [],
+  "jp": ["Wallet Station", "CLUB GIANTS", "piyolog"],
+  "jvn": []
+}

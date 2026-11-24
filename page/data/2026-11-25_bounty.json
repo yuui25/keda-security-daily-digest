@@ -1,0 +1,57 @@
+{
+  "id": "bb",
+  "title": "バグバウンティ・実践",
+  "items": [
+    {
+      "date": "11/24", "pick": true,
+      "title": "Pangolin: 「`public/*` は認証なしで通す」ルールに、`%2F` でつないだ `..` を入れると、同じサイトの認証付きページまで読めた",
+      "tags": ["認証回避", "パス正規化"],
+      "fields": [
+        {"label": "対象", "inline": false, "text": "自前で立てるアクセス制御つきリバースプロキシ Pangolin (Traefik の後ろで、リソースごとの認証とパス単位のルールを判定する)。1.21.0 未満が対象で、CVE-2026-136132、CVSS 4.0 で 9.2。GitHub のアドバイザリ (GHSA-5h3v-3645-78xj) は 11/19 公開、Ostorlab の解説は 11/24 公開。報告者は michaelBelsanti 氏ほか。", "sub": []},
+        {"label": "手口の肝", "inline": false, "text": "条件は、認証を有効にしたリソースに「Bypass Auth・種類 Path・末尾が `*`」のルール (例: `public/*`) があること。判定する関数 `isPathAllowed()` (`server/lib/pathMatch.ts`) は、パターンとパスを生の `/` で区切って順に比べるだけで、**パーセントデコードも `.` `..` の解決もしていなかった**。このため `public` の次に `%2F..%2F` で保護パスをつないだ 1 かたまりは、ただの「`*` に当たる 1 セグメント」として通る。既定の Traefik の設定は `allowEncodedSlash: true` なので、エンコードされたスラッシュは手前で落ちない。裏のサーバーはこれをデコードして `..` を解決し、保護されたパスを返す。", "sub": []},
+        {"label": "影響の広げ方", "inline": false, "text": "アドバイザリの確認では、保護パスを直接開くとログイン画面への 302、細工したパスでは 200 で中身が返った。エンコードせずに `..` をそのまま送る形でも、`*` が `..` を普通のセグメントとして飲み込むので同じ結果になる (Ostorlab の解析)。届くのは**同じリソース (同じホスト) の中**だけで、別のリソースには越えられない。影響は読み取りが中心。修正は、パス側だけをセグメントごとにデコードしてから `.` と `..` を解決して比べる形 (コミット `9561d23`)。二重エンコードの扱いは、どの資料も触れていない。", "sub": []},
+        {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": [
+          "認証付きのサイトに「ここだけ公開」の入口 (`/public/`、`/static/`、`/health`、`/api/webhook` など) があれば、その入口の直後に `%2F` (小文字の `%2f` も) でつないだ `..` と保護パスを続けて送る。直接開くと 302 / 401 なのに、200 で保護ページの中身が返れば当たり。",
+          "エンコードなしの `..` も、クライアントが勝手に畳まない送り方 (curl なら `--path-as-is`、Burp はそのまま) で試す。手前のプロキシが 400 を返すのか、裏まで届くのかを分けて記録する。",
+          "ソースコードや設定を見られる診断では、認可の判定がパスを `split(\"/\")` や前方一致で比べている箇所を探し、その前にデコードと `..` の解決があるかを確かめる。プロキシ側の「エンコードされたスラッシュを許可する」設定 (Traefik の `allowEncodedSlash` など) もあわせて見る。"
+        ]}
+      ],
+      "sources": "[GitHub Advisory GHSA-5h3v-3645-78xj (fosrl/pangolin)](https://github.com/fosrl/pangolin/security/advisories/GHSA-5h3v-3645-78xj) / [Ostorlab (Ostorlab Team)](https://blog.ostorlab.co/pangolin-path-rule-auth-bypass-cve-2026-136132.html) / [修正コミット 9561d23](https://github.com/fosrl/pangolin/commit/9561d23f1e77cdea5d69db820639c0ebc62f03e1)"
+    },
+    {
+      "date": "11/24", "pick": true,
+      "title": "Elixir の Flop: ページ送りの `after` / `before` カーソルに struct を詰めると、日時型の並び替え項目の検証を抜けて、サーバー側で関数を呼べた",
+      "tags": ["Deserialization", "RCE"],
+      "fields": [
+        {"label": "対象", "inline": false, "text": "Elixir (Phoenix / Ecto) でよく使われる、絞り込み・並び替え・ページ送りのライブラリ Flop。CVE-2026-130411、CVSS 4.0 で 9.2。Erlang Ecosystem Foundation の CNA の記録は 11/24 公開で、報告は Wojtek Mach 氏、調整は Jonatan Männchen 氏。今日のセキュリティ欄の hex.pm の件と同じ部品を使うが、こちらは**どのアプリにもありうる「カーソル」が入口**になる。", "sub": []},
+        {"label": "手口の肝", "inline": false, "text": "カーソル型ページ送りの `after` / `before` の値は、`Flop.Cursor.decode/2` が `:erlang.binary_to_term/2` の `:safe` で読む。そのあとの検査は関数、PID、ポート、リファレンスだけを拒否し、**map は通していた**。Elixir の struct は map なので、VM にすでにある名前のモジュールなら、どの struct でも中身を自由に決めて渡せる。次に、並び替えの項目が `:naive_datetime` 型のとき、型の確認は `DateTime` の struct を受け入れるが、**その内側のフィールドの型までは見ない**。", "sub": []},
+        {"label": "影響の広げ方", "inline": false, "text": "Ecto は型変換に失敗した値をエラーメッセージにするために `inspect` する。ここで内側に入れた `Ecto.Query.DynamicExpr` が、さらに内側の `DBConnection.Stream` を列挙し、その `:log` オプション (モジュール・関数・引数の組) が実行される。記録の検証例は、無害な関数が実際に呼ばれたあとで Flop がエラーを返す、という形。前提は、リクエストのパラメータを `Flop.validate_and_run/3` などにそのまま渡していること、カーソル型のページ送りが有効なこと (既定で有効)、並び替えに使える `:naive_datetime` の項目 (例の `inserted_at`) があること、呼ぶ関数の名前が VM にすでにあること。修正版は 0.26.7 / 0.27.3 / 0.28.1 / 0.29.2。回避策は `pagination_types: [:page, :offset]` でカーソル型を止めること。", "sub": []},
+        {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": [
+          "一覧画面や API の `after` / `before` / `cursor` の値を Base64 (URL 用) でデコードし、先頭の 1 バイトが 131 (16 進で `83`) なら Erlang の term 形式。この時点で、ソースコードを見る診断なら `binary_to_term` を探す根拠になる。",
+          "動作の確認は無害な形で行う。カーソルの中の日時の値を、型の違う値 (文字列や入れ子の map) に置き換えて送り、500 や、値の中身が表示されたエラーが返れば、検証を抜けて `inspect` まで届いている。400 で「カーソルが不正」と返れば、手前で止まっている。",
+          "`mix.lock` で flop の版を確かめる。あわせて、設定に `pagination_types` の指定があるか (カーソル型を使っていないのに既定で受け付けていないか) を見る。"
+        ]}
+      ],
+      "sources": "[ErlEF CNA: CVE-2026-130411](https://cna.erlef.org/cves/CVE-2026-130411.html)"
+    },
+    {
+      "date": "11/22", "pick": true,
+      "title": "Zipline: OIDC ログインで IdP が返す「プロフィール画像の URL」をサーバーが取りにいき、結果をアバターとして保存するので、内部の応答を自分のアバターから読めた",
+      "tags": ["SSRF", "OIDC"],
+      "fields": [
+        {"label": "対象", "inline": false, "text": "自前で立てるファイル共有・画像アップローダーの Zipline。4.8.3 未満が対象で、CVE-2026-134805、CVSS 3.1 で 6.3 (4.0 では 7.0)。CVE は 11/22 公開。報告者の名前は、読んだ資料には無かった。", "sub": []},
+        {"label": "手口の肝", "inline": false, "text": "OIDC でログインすると、サーバーは IdP の userinfo にある `picture` の URL を `fetchToDataURL()` (`src/lib/base64.ts`) で取りにいき、返ってきた中身を利用者のアバターとして保存する (`src/server/routes/api/auth/oauth/oidc.ts`)。この URL に、**スキーム、ホスト、名前解決後の IP の制限が無かった**。利用者から見ると「IdP 側のプロフィールの 1 項目」だが、サーバーから見ると外から渡された任意の URL になる。", "sub": []},
+        {"label": "影響の広げ方", "inline": false, "text": "取りにいった先の応答がそのままアバターに入るので、攻撃者は**自分のアバターを読むだけで応答の中身を得られる** (応答が見えない型ではない)。資料は、内部のアドレスとクラウドのメタデータの URL を対象として挙げている。前提は、Zipline で OIDC が有効なこと、攻撃者が OIDC でログインできること、IdP 側で `picture` の値を自分で決められること (プロフィールを自分で編集できる IdP など)。", "sub": []},
+        {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": [
+          "SSO (OIDC / OAuth / SAML) でログインするアプリで、IdP 側のプロフィール画像の URL を、自分が管理する待ち受け用のサーバーに変えてからログインする。アプリのサーバーの IP からアクセスが来れば、サーバーが取りにいっている。",
+          "来た場合は、取得した中身がどこに保存され、どう返るかを追う。画像でない応答もそのままアバターとして返れば、中身を読める型の SSRF として報告できる。内部アドレスへの到達は、許可された範囲でだけ確かめる。",
+          "`picture` のほかにも、IdP の属性やメタデータ由来でサーバーが取りにいく URL (ロゴ、`jwks_uri`、Webhook の送信先など) を同じ目で洗い出す。"
+        ]}
+      ],
+      "sources": "[Strix: CVE-2026-134805](https://strix.ai/cve/CVE-2026-134805)"
+    },
+    {"date": "11/24", "pick": false, "title": "Apache Karaf: 「一致するルールが無いコマンドは実行してよい」という既定のせいで、閲覧だけの SSH 利用者が任意のバンドルを入れて起動できた", "tags": ["認可不備"], "fields": [{"label": "ひとことで", "inline": false, "text": "既定の ACL ファイルは `feature:install` などを管理者に限っているが、`feature:requirement-add` / `requirement-remove` の行が無く、ガードは一致なしを許可として扱う。`viewer` と `ssh` のロールだけの利用者が、Karaf のプロセスの権限でバンドルを取得・起動できる (CVE-2026-130808 / CVE-2026-124615、4.4.12 までが対象)。ACL に 2 行足せば、再起動なしで塞げる。", "sub": []}], "sources": "[Strix: CVE-2026-130808](https://www.strix.ai/cve/CVE-2026-130808) / [Strix: CVE-2026-124615](https://www.strix.ai/cve/CVE-2026-124615)"},
+    {"date": "11/22", "pick": false, "title": "Portainer: 外へ接続する機能が URL の書式しか確かめず、名前解決後のアドレスを見ていなかったので、低権限の利用者が内部やメタデータに届いた", "tags": ["SSRF"], "fields": [{"label": "ひとことで", "inline": false, "text": "Portainer 2.39.0 以上 2.45.1 未満 (CVE-2026-134756、CVSS 4.0 で 5.3)。ログイン済みの低権限の利用者が、URL を受け取る機能を通じて、サーバーから内部・ループバック・クラウドのメタデータへリクエストを送らせ、ポートの確認や応答の読み取りができる。資料の参照先は、レジストリの疎通確認の処理を指している。", "sub": []}], "sources": "[OffSeq Radar: CVE-2026-134756](https://radar.offseq.com/threat/cve-2026-134756-server-side-request-forgery-ssrf-in-portainer-df5b5b6f8c5b3afa)"},
+    {"date": "11/24", "pick": false, "title": "ブログ基盤 idno (Known): Webmention の受け口が、渡された URL を制限なしで取りにいくので、ログインなしで内部の到達性を探れた", "tags": ["SSRF"], "fields": [{"label": "ひとことで", "inline": false, "text": "idno 1.6.4 までの `/webmention/` (CVE-2026-135688、CVSS 4.0 で 6.9)。スキーム、ホスト、IP の確認が無く、未認証で使える。応答の中身は読めず、ステータスと応答時間の差から内部のサービスの有無を推測する型。資料に修正版の記載は無い。Webmention や pingback のように「相手の URL を確認しにいく」機能は、SSRF の定番の入口になる。", "sub": []}], "sources": "[OffSeq Radar: CVE-2026-135688](https://radar.offseq.com/threat/cve-2026-135688-server-side-request-forgery-ssrf-in-idno-0f82b7ea1c957022)"}
+  ]
+}
