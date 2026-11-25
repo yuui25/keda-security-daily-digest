@@ -1,0 +1,40 @@
+{
+  "id": "bb",
+  "title": "バグバウンティ・実践",
+  "items": [
+    {
+      "date": "11/24", "pick": true,
+      "title": "GeoServer: サービス名を `x/WFS` と書くだけで管理者専用の操作に届き、設定ファイルを読んで「remember me」の Cookie を自作し、ログインなしで RCE まで進む",
+      "tags": ["認可回避", "XML Injection", "Cookie 偽造"],
+      "fields": [
+        {"label": "対象", "inline": false, "text": "地図データの配信サーバー GeoServer (3.0.0〜3.0.1、2.28.0〜2.28.5、2.27.6 以前)。標準の構成のままで成立する。Eye Security の Niels Teusink 氏が 9/29 に、Rapid7 の Jonah Burgess 氏 (CryptoCat) が 8/2 に、それぞれ別に報告した。連鎖の中心の CVE-2026-129245 は CVSS 4.0 で 9.2。Eye Security は、外から届く GeoServer を 3,000 台以上見つけたとしている。", "sub": []},
+        {"label": "手口の肝", "inline": false, "text": "部品は 3 つある。**(1) 認可の回避 (CVE-2026-129243)**: リクエストを振り分ける処理は、`service` の値の「最後の `/` より後ろ」だけを見るので、`x/WFS` は WFS として動く。一方、権限を確かめる処理は、書かれたままの `x/WFS` を `wfs` 用のルールと比べる。一致するルールが無いので、ロールの確認そのものが飛ばされる。これで、本来は管理者だけの `CreateStoredQuery` を匿名で呼べる。**(2) XML への差し込み (CVE-2026-120705)**: WFS 2.0 の stored query (`GetFeatureById`) は、渡された ID を XML のひな形に文字列の置き換えで埋め込み、エスケープしない。引用符で属性を閉じると要素を足せる。保存のときに XML を読み直すパーサーは XInclude が有効で、`file:` も解決するので、サーバー上のファイルを取り込める。**(3) 固定の鍵 (CVE-2026-129245)**: 「remember me」の Cookie は、利用者名、期限、保存されているパスワードのダイジェスト、鍵から作った署名で、配布物の鍵は `geoserver` で固定だった。", "sub": []},
+        {"label": "影響の広げ方", "inline": false, "text": "(2) で `security/config.xml` (鍵) と `users.xml` (管理者のダイジェスト) を読み、(3) で管理者の Cookie を作る。**パスワードは解読しない**。署名に使うのはダイジェストそのものなので、強いパスワードでも止まらない。管理者になったあとは、JDBC の利用者サービスの設定から、HSQLDB のデシリアライズ (CVE-2026-129242) か、SQLite の拡張の読み込み (CVE-2026-120704) でコードを実行する。Eye Security は Linux と Windows の両方で確かめた。読めるのは XML として扱える内容のファイルで、バイナリは読めない場合がある。なお、ファイルの読み取りについて Eye Security は「`GetFeatureById` だけで届く」、Ostorlab は「保存 (`CreateStoredQuery`) を通すので (1) の回避が要る」と書いており、説明が食い違っている。watchTowr が見た実際の攻撃は、stored query を作って呼び、エラーの応答で脆弱かを確かめる探索だった。", "sub": []},
+        {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": [
+          "GeoServer に限らず、「サービス名や操作名で権限を決める」作りの API では、名前に接頭辞や区切り文字 (`x/名前`、大文字と小文字の違い、前後の空白) を付けて送る。**振り分けは通るのに、権限のルールには一致しない**書き方があれば当たり。応答が 403 から 200 や業務エラーに変わるかで見分ける。",
+          "「一致するルールが無ければ許可する」作りを、ソースコードで探す。ルールを順に比べて、最後まで一致しなかったときの分岐 (GeoServer では `bestMatch` が null のまま) が拒否になっているかを確かめる。",
+          "「ログインを保持する」Cookie の署名の材料を確かめる。配布物の既定の鍵がそのまま使われていないか、材料がパスワードのハッシュだけで足りないか。**ファイルの読み取りの脆弱性が 1 つあると、ハッシュを解読せずに管理者になれる**ので、その場合はファイルの読み取りの深刻度を上げて報告する。",
+          "担当の GeoServer では、アクセスログで `service=x/WFS` のような `/` 入りの値、極端に長い `storedQuery_id`、同じ送信元からの `DescribeStoredQueries` の繰り返しを探す。データディレクトリの `wfs/query/` に覚えのない XML が無いか、作った覚えのない JDBC の利用者サービスが無いかも見る。修正版は 3.0.2、2.28.6、2.27.7。"
+        ]}
+      ],
+      "sources": "[Eye Security (Niels Teusink)](https://labs.eye.security/unauthenticated-remote-code-execution-vulnerability-in-geoserver/) / [Ostorlab (Ostorlab Team)](https://blog.ostorlab.co/geoserver-unauthenticated-rce-chain-cve-2026-129245.html) / [GeoServer 公式](https://geoserver.org/vulnerability/2026/11/23/cve-update.html) / [The Hacker News](https://thehackernews.com/2026/11/hackers-exploit-two-geoserver-flaws-as.html)"
+    },
+    {
+      "date": "11/20", "pick": true,
+      "title": "業務システム 6 つを AI でソースコード診断した実例: 重大な指摘 77 件のうち最多は「受け取った ID を、呼び出した人の会社や権限と照らしていない」だった",
+      "tags": ["IDOR", "認証フロー", "検証の回避"],
+      "fields": [
+        {"label": "対象", "inline": false, "text": "AWS で動く業務システム 6 つ (Java が 5、Python が 1。名前は伏せてある)。GMO コネクトの永田氏が、Claude Code にソースコードを読ませて診断した。機能の領域ごとに、攻撃面の洗い出し、観点別の探索 3 つ、検証役の計 5 つのサブエージェントを使っている。「緊急」と「高」だけを数えて 77 件で、あとから OWASP ASVS 5.0 に当てはめたところ、94% がレベル 1 か 2 の要件だった。", "sub": []},
+        {"label": "手口の肝", "inline": false, "text": "いちばん多かったのは認可 (22 件、うち 17 件がデータ単位の認可) だった。受け取った ID を、呼び出した人の会社、持ち主、ロールと照らしていない。形は 3 つある。**(1) 条件が空だと絞り込みが消える**: 共通の更新・削除の部品が、`companyId` を省いたリクエストでは会社の条件ごと落としていて、他社の行を更新できた。**(2) 本文の値を信じる**: API がトークンの中の身元ではなく、本文の `userId` と `companyId` を使っていた。**(3) 入口の一部にしか確認が無い**。認可以外では、API Gateway のリクエストの検証が `application/json` にしか効かず、別の `Content-Type` で送ると検証を飛ばしたまま、Lambda が本文を JSON として処理していた。", "sub": []},
+        {"label": "影響の広げ方", "inline": false, "text": "手順の飛ばしも繰り返し出ている。パスワードの確認のあと、MFA の前にセッションの Cookie が出る。「この端末を記憶する」による MFA の省略が、クライアントの送る値で決まる。承認済みの予約に、前の段階の API をもう一度呼ぶと「申請中」に戻る。メールの確認コードは、Cognito の API を直接呼ぶ経路では失敗の回数が数えられず、総当たりができた。Spring では、Spring Security が `/rooms/import/` (末尾に `/`) を別の URL として広いルール `/rooms/**` に当て、Spring MVC (5 系の既定) は同じリクエストを `/rooms/import` に届けていた。", "sub": []},
+        {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": [
+          "更新・削除の API で、会社やテナントを表すパラメータを**空にする、丸ごと消す**。自分のテナント以外の行が更新されたり、件数が増えたりすれば、絞り込みの条件が消えている。ソースコードでは、条件を「値があるときだけ足す」共通の部品を探す。",
+          "API Gateway の後ろの API には、同じ JSON の本文を `Content-Type: text/plain` などに変えて送る。検証で弾かれていた値 (範囲の外の数、自分より上のロール) が通れば当たり。モデルの content type が `$default` になっているかを設定で確かめる。",
+          "多段のログインでは、各段階の応答で**トークンや Cookie がいつ出るか**を記録し、MFA の前に出たものだけで保護された API を呼ぶ。MFA の省略を決める値がリクエストの中にあれば書き換える。",
+          "Spring 5 系のアプリでは、権限の必要なパスの末尾に `/` を付けて送る。403 だったものが 200 になれば、Spring Security と Spring MVC でパスの見方がずれている。"
+        ]}
+      ],
+      "sources": "[Qiita (永田 / ntaka329)](https://qiita.com/ntaka329/items/3f9405a4e2bb7e0add3f)"
+    }
+  ]
+}
