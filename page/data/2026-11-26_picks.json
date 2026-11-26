@@ -1,9 +1,29 @@
 {
-  "hide": ["cve", "deep"],
-  "ai": ["Skills over MCP", "Google Workspace MCP"],
-  "aisec": ["ARTEX」を解説", "ruflo", "Siren"],
-  "sec": ["KEV に 10 件", "WP Connect", "NTLM", "VulnCheck"],
+  "hide": [
+    "cve",
+    "deep"
+  ],
+  "ai": [
+    "Skills over MCP",
+    "Google Workspace MCP"
+  ],
+  "aisec": [
+    "ARTEX」を解説",
+    "ruflo",
+    "Siren"
+  ],
+  "sec": [
+    "GeoServer",
+    "KEV に 10 件",
+    "WP Connect",
+    "NTLM",
+    "VulnCheck"
+  ],
   "cve": [],
-  "jp": ["DHC", "京王電鉄", "源内 Web"],
+  "jp": [
+    "DHC",
+    "京王電鉄",
+    "源内 Web"
+  ],
   "jvn": []
 }

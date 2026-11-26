@@ -34,7 +34,7 @@
 | JVN (`jvn`) | 0〜1 件 | 特に重要なときだけ |
 
 - **CVE 表と「今日の深掘り」の欄はページに出さない** (`"hide": ["cve", "deep"]`)。深掘りの項目は、ビルド時に自動でセキュリティ欄の先頭に普通のカードとして入るので、`sec` はそれを含めて 4〜5 件になるよう 3〜4 件を選ぶ。
-- 「実践」欄に載せる記事と同じものは、他の欄で選ばない。
+- 「実践」欄は Web Security Academy の深掘りなので、日報の項目とは重ならない。実践欄の「実例」に使った日報の項目は、他の欄でも普通に選んでよい。
 - `viewer/page/data/<today>_picks.json` に書く。値は **日報の見出しに実際に含まれる、他と重ならない短い文字列** (JVN は識別子の一部)。
 
 ```json
@@ -49,40 +49,46 @@
 }
 ```
 
-## 3. 「バグバウンティ・実践」欄を作る (bounty)
+## 3. 「バグバウンティ・実践」欄を作る (bounty): Web Security Academy の深掘り 3 件
 
-実際の脆弱性報告・ライトアップから、**読者が次の診断で試せる学びがあるもの** を集め、日本語で解説する。この欄がページの主役。
+PortSwigger の **Web Security Academy** (https://portswigger.net/web-security) の解説を、**1 日 3 件ずつ、トピックの順に** 日本語で深掘りする。各件には、その内容が実際の診断や報告でどう現れるかの **実例** を絡める。この欄がページの主役。
+(2026-11-26 に本人の希望で、ライトアップ中心の欄から切り替えた。)
 
-### 集め方
+### 進み具合の管理
 
-- 対象: **公開から 7 日以内** のライトアップ。`viewer/page/data/*_bounty.json` の直近 14 日分を読み、**すでに載せた URL・同じ内容の記事は載せない** (`pick` が true でも false でも既出として扱う)。 ただし **今日の日付のファイル (`<today>_bounty.json`) は既出として数えない**。同じ日にやり直す場合は、今日のファイルに載っている記事をそのまま候補に含めて作り直す。
-- この環境では WebFetch が失敗することがある。その場合は `curl -sSL -m 30 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130" <URL>` で取得する。一覧は RSS が効率的。
-- **Medium (medium.com、infosecwriteups.com など) は、この環境から本文を読めない。** Medium の新着一覧は「話題の手がかり」としてだけ使ってよいが、本文が読めない限り載せない。同じ著者が個人ブログや GitHub に同じ内容を公開していれば、そちらを読んで載せる。Medium の記事を何本も開こうとして時間を使わない。
-- 本文を読める取得先を優先する (全部を毎回見る必要はない。**日本語の記事があれば優先**):
-  - 一覧: `https://pentester.land/writeups.json` (ライトアップの一覧)、Intigriti Bug Bytes、YesWeHack・Bugcrowd・HackerOne のブログ
-  - HackerOne の公開レポート: 公開済みの番号が分かれば `https://hackerone.com/reports/<番号>.json` で本文を取得できる。WebSearch で直近に公開されたレポートを探す
-  - 研究チーム: PortSwigger Research (`https://portswigger.net/research/rss`)、watchTowr Labs、Assetnote / Searchlight Cyber、Doyensec、Sonar、Synacktiv、GitHub Security Lab、ProjectDiscovery、Horizon3、Rhino Security Labs、Critical Thinking (ポッドキャストの記事)
-  - 個人ブログ・GitHub のライトアップ用リポジトリ (WebSearch で「bug bounty writeup」「account takeover writeup」「IDOR writeup」などと当月を組み合わせて探す)
-  - 日本語: GMO Flatt Security Blog、GMO イエラエ、Zenn (`https://zenn.dev/topics/security/feed`、`https://zenn.dev/topics/bugbounty/feed`)、はてなブログ・Qiita の脆弱性報告の記事、国内研究者の個人ブログ
-  - 日報 (`repo/` の今日分) に載っている研究記事のうち、原因と確認方法まで書かれた Web アプリ・API・認証認可の話は、ここで詳しく取り上げてよい (その場合は他の欄で選ばない)
-- **選ぶもの**: 本人が見つけた実例で、入口・原因・影響が追えるもの。**Web アプリ・Web API・認証認可の話を中心にする。** ロジックの欠陥、認可の不備 (IDOR など)、XSS、CSRF、SSRF、SQL インジェクション、OAuth / SSO、セッション管理、競合状態、キャッシュ、リクエストスマグリング、パスの正規化の食い違いなど、読者が Web の診断にそのまま持ち帰れる種類を優先する。
-- **Web 以外の扱い**: 載せる (pick: true) のは Web の話を優先し、**Web 以外 (OS やデスクトップアプリの権限昇格、メモリ破壊、カーネル、マルウェア解析、データベース単体の RCE、モバイルの端末側の欠陥、AI エージェントの権限設定など) は、Web の良い記事が足りない日に多くても 1 件まで**。クラウドの設定、モバイルや AI/LLM アプリでも、入口が HTTP のリクエストで Web の診断に通じる話 (API の認可、SSRF、プロンプト経由の情報の持ち出しなど) は Web の話として扱ってよい。Web の記事が 1 件も無い日に、Web 以外で埋めにいかない。
-- **選ばないもの**: 過去の有名な報告の焼き直し、一般論や入門解説、「Top 10 Tips」の類、CTF / TryHackMe / HackTheBox の解説、宣伝、ニュースの要約、説明と証拠 (スクリーンショットやコード) が食い違っている記事。
-- 本文を読み、主張に矛盾が無いかを確かめる。怪しければ載せない。
+- `viewer/page/data/academy_progress.json` に、トピックの順番 (`order`)、済んだ範囲 (`done`)、次に読む場所のメモ (`next`) がある。**毎回これを読み、続きから 3 件を選ぶ。** 済んだ範囲は繰り返さない。
+- 「1 件」は、Academy の解説ページ 1 枚、または長いページの中のまとまった 1〜3 節。3 件は同じトピックの続きにする。トピックの残りが 3 件に足りない日は、次のトピックの頭に進んでよい。
+- 1 つのトピックでは、そのトピックの最初のページを開いて節と下位ページの並びを確かめ、ページの順に進む。ラボ (`/lab-...` のページ) は、解説ページの理解に要るときだけ読む。**ラボの解答手順は載せない。**
+- `order` を最後まで終えたら、Academy の一覧 (https://portswigger.net/web-security/all-materials/detailed) で `order` に無いトピックを探して続ける。それも無ければ、PortSwigger Research (https://portswigger.net/research) の記事を新しい順に同じ形式で扱う。
+- 書き終えたら `done` に今日の 3 件を足し、`next` を書き直す (手順 6 で一緒に push される)。同じ日にやり直す場合は、`done` から今日の日付の分を消してから選び直す。
+
+### 読み方
+
+- Academy のページは、WebSearch (`allowed_domains: ["portswigger.net"]`) でトピック名を検索し、結果に出た URL を、ページ取得のツールで開く。**本文を読めたページだけ書く。** 記憶で書かない。
+- 3 件分を読めなかった日は、読めた件数だけ載せる。1 件も読めなかった日は `items` を空にし、`academy_progress.json` は進めず、最後の報告に「開けなかった」と書く。
+
+### 実例の絡め方
+
+- 各件に、その日の範囲の脆弱性が **実際に見つかった例** を 1〜2 個添える。**新しさは問わない** (古い報告でよい)。探す順:
+  1. 今日の日報 (`repo/` の今日分) に、同じ種類の脆弱性やインシデントがあれば、それを使う。
+  2. WebSearch で「<脆弱性の種類> writeup」「<種類> HackerOne report」「<種類> 脆弱性 報告」などを検索し、結果に出た URL を開いて本文を読む。日本語の記事があれば優先する。
+- 実例も、**本文を読めたものだけ** 書く。読めた実例が無い件は、「実例で見ると」の欄を省く (推測や記憶で埋めない)。Medium は本文を読めないので使わない。
+- 実例は「どのサービスの、どの入口で、何の確認が無かったか」を 2〜4 文で書き、その日の Academy の内容のどこに当たるかを 1 文でつなぐ。
 
 ### 書き方
 
-- **載せる (pick: true) のは 2〜4 件。** 良いものが 1 件しか無い日は 1 件でよい。読める良い記事が 1 件も無い日は `items` を空にし、最後の報告にそう書く (無理に埋めない)。
-- 各件の見出し (`title`) は日本語で「何をどうしたら何ができたか」が分かる 1 文にする。原題の直訳にしない。
-- `fields` は次の 4 つをこの順で書く。読者が原文を開かなくても流れが分かる具体さで書く。
-  1. **対象**: どんなサービス・機能か (伏せ字ならその旨)、報告者、分かれば報奨金や重大度。1〜2 文。
-  2. **手口の肝**: 入口になったパラメータや機能、原因 (どのチェックが無かったか)。2〜4 文。
-  3. **影響の広げ方**: 最初の発見からどう影響を大きくしたか (他人のデータ、権限昇格など)。前提条件や、うまくいかなかった試みがあれば書く。1〜3 文。
-  4. **自分の診断で試すこと**: `text` は空にし、`sub` に 2〜3 個。「どこを探し、何を確かめ、何が返れば当たりか」の粒度で書く。
-- `tags` は脆弱性の種類を短く 1〜3 個 (例: `IDOR`、`DOM XSS`、`ATO`、`Race Condition`、`SSRF`、`OAuth`、`CSPT`、`Prompt Injection`)。
-- `date` は記事の公開日を `MM/DD` で。`sources` は `[媒体名 (著者)](URL)` の形。
-- **その他 (pick: false) は最大 4 件。** 本文を読んだうえで、上位に入らなかったもの。見出しを日本語にし、`fields` に `{"label": "ひとことで", "inline": false, "text": "<日本語 1〜2 文で何の話か>", "sub": []}` を 1 つ入れる。
-- `viewer/page/data/<today>_bounty.json` に書く。書式の実例は `viewer/page/data/2026-11-19_bounty.json` の 1 件目。本文中の `**太字**`、`` `コード` ``、`[文字](URL)` は使える。JSON として正しいこと (`python3 -m json.tool` で確認)。
+- **載せるのは 3 件、すべて `pick: true`。** `pick: false` の項目は作らない。
+- `date` は今日の日付 (`MM/DD`)。`title` は日本語で「何を、どう確かめる話か」が分かる 1 文にする。先頭にトピック名を付ける (例: 「アクセス制御 (2): …」)。
+- 読者は診断が本業なので、入門の説明 (用語の定義だけの節) は 1 文で済ませ、**見落としやすい点と、確かめ方** に字数を使う。
+- **短くまとめる。箇条書きを主にする** (本人の希望)。各箇条は「**太字の見出し**: 1〜2 文」の形にし、長い段落にしない。
+- `fields` は次の順で書く。
+  1. **今日の範囲**: Academy のどのページの、どの節か。`text` に 1 文。
+  2. **仕組みの肝**: `text` に全体を 1 文、`sub` に 2〜4 個。なぜ起きるか、どのチェックが無いか。Academy が挙げる具体的な識別子 (ヘッダー名、パラメータ名、設定名、URL の形) は原文のまま載せる。
+  3. **実例で見ると**: 上の「実例の絡め方」のとおり。実例が 1 つなら `text` に 2〜3 文、複数なら `sub` に 1 つずつ。読めた実例が無ければこの欄を省く。
+  4. **自分の診断で試すこと**: `text` は空にし、`sub` に 3〜5 個。各箇条は「**何をするか**: 何を送り、何が返れば当たりか」を 1〜2 文で書く。
+- `tags` は 1〜3 個 (トピック名や脆弱性の種類)。`sources` は Academy のページを先頭に、実例の出典を続ける (`[媒体名 (著者)](URL)` の形)。
+- 原文の長い引用・全文翻訳はしない。自分の言葉で書く。動く攻撃コードや完全なペイロードは載せない。
+- `viewer/page/data/<today>_bounty.json` に書く。書式の実例は `viewer/page/data/2026-11-26_bounty.json`。本文中の `**太字**`、`` `コード` ``、`[文字](URL)` は使える。JSON として正しいこと (`python3 -m json.tool` で確認)。
 
 ```json
 {
@@ -90,18 +96,17 @@
   "title": "バグバウンティ・実践",
   "items": [
     {
-      "date": "11/19", "pick": true,
-      "title": "決済のリダイレクト用ページの DOM XSS から、1 クリックでアカウント乗っ取り",
-      "tags": ["DOM XSS", "ATO"],
+      "date": "11/26", "pick": true,
+      "title": "アクセス制御 (1): …",
+      "tags": ["アクセス制御", "権限昇格"],
       "fields": [
-        {"label": "対象", "inline": false, "text": "…", "sub": []},
-        {"label": "手口の肝", "inline": false, "text": "…", "sub": []},
-        {"label": "影響の広げ方", "inline": false, "text": "…", "sub": []},
+        {"label": "今日の範囲", "inline": false, "text": "…", "sub": []},
+        {"label": "仕組みの肝", "inline": false, "text": "…", "sub": []},
+        {"label": "実例で見ると", "inline": false, "text": "…", "sub": []},
         {"label": "自分の診断で試すこと", "inline": false, "text": "", "sub": ["…", "…"]}
       ],
-      "sources": "[GitHub (cyrusthedev)](https://github.com/…)"
-    },
-    {"date": "11/19", "pick": false, "title": "…", "tags": ["CSPT"], "fields": [{"label": "ひとことで", "inline": false, "text": "…", "sub": []}], "sources": "[媒体名 (著者)](https://…)"}
+      "sources": "[Web Security Academy: Access control](https://portswigger.net/web-security/access-control) / [媒体名 (著者)](https://…)"
+    }
   ]
 }
 ```
@@ -171,6 +176,6 @@ git push origin HEAD:main
 
 - ページを更新できたか (どの日付の日報か)
 - 載せた件数: 実践 n 件 / AI n / AI セキュリティ n / セキュリティ n / 国内 n
-- 実践欄に載せたライトアップの見出し (pick: true のもの) と、その取得先
+- 実践欄で扱った Web Security Academy のトピックと範囲、絡めた実例の取得先
 - GitHub の日報に実践欄を書き込めたか
 - 問題があった点 (取得できなかった巡回先、公開や push の失敗、実践欄が 0 件だった理由)

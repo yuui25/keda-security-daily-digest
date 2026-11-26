@@ -1,0 +1,42 @@
+{
+  "note": "「バグバウンティ・実践」欄 (Web Security Academy の深掘り) の進み具合。使い方は page/INSTRUCTIONS.md の手順 3。",
+  "order": [
+    {"topic": "アクセス制御", "start": "https://portswigger.net/web-security/access-control"},
+    {"topic": "認証", "start": "https://portswigger.net/web-security/authentication"},
+    {"topic": "OAuth 2.0", "start": "https://portswigger.net/web-security/oauth"},
+    {"topic": "JWT", "start": "https://portswigger.net/web-security/jwt"},
+    {"topic": "ビジネスロジック", "start": "https://portswigger.net/web-security/logic-flaws"},
+    {"topic": "競合状態 (Race conditions)", "start": "https://portswigger.net/web-security/race-conditions"},
+    {"topic": "SSRF", "start": "https://portswigger.net/web-security/ssrf"},
+    {"topic": "パストラバーサル", "start": "https://portswigger.net/web-security/file-path-traversal"},
+    {"topic": "ファイルアップロード", "start": "https://portswigger.net/web-security/file-upload"},
+    {"topic": "OS コマンドインジェクション", "start": "https://portswigger.net/web-security/os-command-injection"},
+    {"topic": "SQL インジェクション", "start": "https://portswigger.net/web-security/sql-injection"},
+    {"topic": "NoSQL インジェクション", "start": "https://portswigger.net/web-security/nosql-injection"},
+    {"topic": "XXE", "start": "https://portswigger.net/web-security/xxe"},
+    {"topic": "サーバーサイドテンプレートインジェクション", "start": "https://portswigger.net/web-security/server-side-template-injection"},
+    {"topic": "安全でないデシリアライズ", "start": "https://portswigger.net/web-security/deserialization"},
+    {"topic": "情報の露出", "start": "https://portswigger.net/web-security/information-disclosure"},
+    {"topic": "API のテスト", "start": "https://portswigger.net/web-security/api-testing"},
+    {"topic": "GraphQL", "start": "https://portswigger.net/web-security/graphql"},
+    {"topic": "Host ヘッダー攻撃", "start": "https://portswigger.net/web-security/host-header"},
+    {"topic": "Web キャッシュポイズニング", "start": "https://portswigger.net/web-security/web-cache-poisoning"},
+    {"topic": "Web キャッシュデセプション", "start": "https://portswigger.net/web-security/web-cache-deception"},
+    {"topic": "HTTP リクエストスマグリング", "start": "https://portswigger.net/web-security/request-smuggling"},
+    {"topic": "XSS", "start": "https://portswigger.net/web-security/cross-site-scripting"},
+    {"topic": "CSRF", "start": "https://portswigger.net/web-security/csrf"},
+    {"topic": "CORS", "start": "https://portswigger.net/web-security/cors"},
+    {"topic": "クリックジャッキング", "start": "https://portswigger.net/web-security/clickjacking"},
+    {"topic": "DOM ベースの脆弱性", "start": "https://portswigger.net/web-security/dom-based"},
+    {"topic": "WebSocket", "start": "https://portswigger.net/web-security/websockets"},
+    {"topic": "プロトタイプ汚染", "start": "https://portswigger.net/web-security/prototype-pollution"},
+    {"topic": "Web LLM 攻撃", "start": "https://portswigger.net/web-security/llm-attacks"},
+    {"topic": "基本の技術 (エンコードによる難読化など)", "start": "https://portswigger.net/web-security/essential-skills"}
+  ],
+  "done": [
+    {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control", "section": "アクセス制御の 3 分類 / 垂直の権限昇格: 保護されていない機能、パラメータ頼みの制御"},
+    {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control", "section": "プラットフォームの設定の誤り (X-Original-URL、メソッド) / URL の照合の食い違い"},
+    {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control/idor", "section": "水平の権限昇格、水平から垂直へ / IDOR のページ全体"}
+  ],
+  "next": "アクセス制御の残り: access-control のページの「多段の処理での制御の漏れ」「Referer による制御」「場所による制御」「防ぎ方」の節と、下位ページ「Access control security models」。終わったら「認証」へ。"
+}

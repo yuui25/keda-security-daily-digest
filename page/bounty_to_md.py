@@ -34,12 +34,12 @@ def render(bounty, year, month):
     picks = [i for i in items if i.get('pick')]
     others = [i for i in items if not i.get('pick')]
     out = [START, '## バグバウンティ・実践', '']
-    out.append('> 実際の脆弱性報告・ライトアップから、次の診断で試せる学びを日本語で解説する欄。'
-               '公開から 7 日以内のものが対象 (採用範囲の 2 日間とは別)。'
+    out.append('> PortSwigger の Web Security Academy を、1 日 3 件ずつトピックの順に日本語で深掘りし、'
+               '実際の報告での現れ方 (実例) を絡めて解説する欄。'
                '定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。')
     out.append('')
     if not picks and not others:
-        out += ['> 本日は、本文を読めて載せる価値のあるライトアップは確認できませんでした。', '']
+        out += ['> 本日は、Web Security Academy のページを開けなかったため、掲載はありません。', '']
     for it in picks:
         out.append(f"### [{full_date(it.get('date'), year, month)}] {it.get('title', '').strip()}")
         tags = it.get('tags') or []
