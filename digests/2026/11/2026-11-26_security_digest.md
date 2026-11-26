@@ -300,31 +300,60 @@ AI 側では、Microsoft が ARTEX の構造と検知の手がかりを解説し
 <!-- bounty:start -->
 ## バグバウンティ・実践
 
-> 実際の脆弱性報告・ライトアップから、次の診断で試せる学びを日本語で解説する欄。公開から 7 日以内のものが対象 (採用範囲の 2 日間とは別)。定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。
+> PortSwigger の Web Security Academy を、1 日 3 件ずつトピックの順に日本語で深掘りし、実際の報告での現れ方 (実例) を絡めて解説する欄。定期タスク「KEDA Daily Digest ページ更新」が、ページ版と同じ内容をここに追記している。
 
-### [2026-11-24] GeoServer: サービス名を `x/WFS` と書くだけで管理者専用の操作に届き、設定ファイルを読んで「remember me」の Cookie を自作し、ログインなしで RCE まで進む
-- **種類**: 認可回避 / XML Injection / Cookie 偽造
-- **対象**: 地図データの配信サーバー GeoServer (3.0.0〜3.0.1、2.28.0〜2.28.5、2.27.6 以前)。標準の構成のままで成立する。Eye Security の Niels Teusink 氏が 9/29 に、Rapid7 の Jonah Burgess 氏 (CryptoCat) が 8/2 に、それぞれ別に報告した。連鎖の中心の CVE-2026-129245 は CVSS 4.0 で 9.2。Eye Security は、外から届く GeoServer を 3,000 台以上見つけたとしている。
-- **手口の肝**: 部品は 3 つある。**(1) 認可の回避 (CVE-2026-129243)**: リクエストを振り分ける処理は、`service` の値の「最後の `/` より後ろ」だけを見るので、`x/WFS` は WFS として動く。一方、権限を確かめる処理は、書かれたままの `x/WFS` を `wfs` 用のルールと比べる。一致するルールが無いので、ロールの確認そのものが飛ばされる。これで、本来は管理者だけの `CreateStoredQuery` を匿名で呼べる。**(2) XML への差し込み (CVE-2026-120705)**: WFS 2.0 の stored query (`GetFeatureById`) は、渡された ID を XML のひな形に文字列の置き換えで埋め込み、エスケープしない。引用符で属性を閉じると要素を足せる。保存のときに XML を読み直すパーサーは XInclude が有効で、`file:` も解決するので、サーバー上のファイルを取り込める。**(3) 固定の鍵 (CVE-2026-129245)**: 「remember me」の Cookie は、利用者名、期限、保存されているパスワードのダイジェスト、鍵から作った署名で、配布物の鍵は `geoserver` で固定だった。
-- **影響の広げ方**: (2) で `security/config.xml` (鍵) と `users.xml` (管理者のダイジェスト) を読み、(3) で管理者の Cookie を作る。**パスワードは解読しない**。署名に使うのはダイジェストそのものなので、強いパスワードでも止まらない。管理者になったあとは、JDBC の利用者サービスの設定から、HSQLDB のデシリアライズ (CVE-2026-129242) か、SQLite の拡張の読み込み (CVE-2026-120704) でコードを実行する。Eye Security は Linux と Windows の両方で確かめた。読めるのは XML として扱える内容のファイルで、バイナリは読めない場合がある。なお、ファイルの読み取りについて Eye Security は「`GetFeatureById` だけで届く」、Ostorlab は「保存 (`CreateStoredQuery`) を通すので (1) の回避が要る」と書いており、説明が食い違っている。watchTowr が見た実際の攻撃は、stored query を作って呼び、エラーの応答で脆弱かを確かめる探索だった。
+### [2026-11-26] アクセス制御 (1): 管理機能は「リンクが無いだけ」ではないか、権限をクライアントの送る値で決めていないか
+- **種類**: アクセス制御 / 垂直の権限昇格
+- **今日の範囲**: Web Security Academy「Access control」の前半。垂直の権限昇格のうち「保護されていない機能」と「パラメータ頼みの制御」。
+- **仕組みの肝**: 一般の利用者が管理者の機能に届く崩れ方は、まず次の 2 つ。
+  - **隠しているだけ**: 管理機能へのリンクを画面に出さないだけで、URL を直接開けば使える。
+  - **パスは漏れる**: 推測しにくいパス (例: `/administrator-panel-yb556`) にしても、`robots.txt` や全員に配られる JavaScript (例: `isAdmin` で管理用リンクを足す処理) から分かる。
+  - **権限を利用者の手元に置く**: hidden フィールド、Cookie、クエリ (`admin=true`、`role=1`) に権限を入れ、サーバーがその値を信じる。
+- **実例で見ると**: 業務システム 6 つのソースコード診断の報告 (Qiita、永田氏)。MFA の省略を**クライアントが送る値**で決めていた。ロールを設定する API は、自分より上のロールを指定しても通った。置き場所が Cookie から JSON の本文に変わっただけで、同じ形。
 - **自分の診断で試すこと**:
-  - GeoServer に限らず、「サービス名や操作名で権限を決める」作りの API では、名前に接頭辞や区切り文字 (`x/名前`、大文字と小文字の違い、前後の空白) を付けて送る。**振り分けは通るのに、権限のルールには一致しない**書き方があれば当たり。応答が 403 から 200 や業務エラーに変わるかで見分ける。
-  - 「一致するルールが無ければ許可する」作りを、ソースコードで探す。ルールを順に比べて、最後まで一致しなかったときの分岐 (GeoServer では `bestMatch` が null のまま) が拒否になっているかを確かめる。
-  - 「ログインを保持する」Cookie の署名の材料を確かめる。配布物の既定の鍵がそのまま使われていないか、材料がパスワードのハッシュだけで足りないか。**ファイルの読み取りの脆弱性が 1 つあると、ハッシュを解読せずに管理者になれる**ので、その場合はファイルの読み取りの深刻度を上げて報告する。
-  - 担当の GeoServer では、アクセスログで `service=x/WFS` のような `/` 入りの値、極端に長い `storedQuery_id`、同じ送信元からの `DescribeStoredQueries` の繰り返しを探す。データディレクトリの `wfs/query/` に覚えのない XML が無いか、作った覚えのない JDBC の利用者サービスが無いかも見る。修正版は 3.0.2、2.28.6、2.27.7。
-- 出典: [Eye Security (Niels Teusink)](https://labs.eye.security/unauthenticated-remote-code-execution-vulnerability-in-geoserver/) / [Ostorlab (Ostorlab Team)](https://blog.ostorlab.co/geoserver-unauthenticated-rce-chain-cve-2026-129245.html) / [GeoServer 公式](https://geoserver.org/vulnerability/2026/11/23/cve-update.html) / [The Hacker News](https://thehackernews.com/2026/11/hackers-exploit-two-geoserver-flaws-as.html)
+  - **パスを拾う**: `robots.txt` と JavaScript を `admin`、`isAdmin`、`role` で検索する。
+  - **直接開く**: 低い権限のまま、拾ったパスを開く。403 や転送でなく、画面や業務エラーが返れば当たり。
+  - **値を書き換える**: Cookie、hidden、JSON の `role` / `isAdmin` を上の権限の値にして送る。項目が増える、管理用の API が 200 を返す、で当たり。
+  - **項目を足す**: プロフィール更新などに `role` を足して送る。次のログインで権限が変わっていれば当たり。
+- 出典: [Web Security Academy: Access control](https://portswigger.net/web-security/access-control) / [Qiita (永田 / ntaka329)](https://qiita.com/ntaka329/items/3f9405a4e2bb7e0add3f)
 
-### [2026-11-20] 業務システム 6 つを AI でソースコード診断した実例: 重大な指摘 77 件のうち最多は「受け取った ID を、呼び出した人の会社や権限と照らしていない」だった
-- **種類**: IDOR / 認証フロー / 検証の回避
-- **対象**: AWS で動く業務システム 6 つ (Java が 5、Python が 1。名前は伏せてある)。GMO コネクトの永田氏が、Claude Code にソースコードを読ませて診断した。機能の領域ごとに、攻撃面の洗い出し、観点別の探索 3 つ、検証役の計 5 つのサブエージェントを使っている。「緊急」と「高」だけを数えて 77 件で、あとから OWASP ASVS 5.0 に当てはめたところ、94% がレベル 1 か 2 の要件だった。
-- **手口の肝**: いちばん多かったのは認可 (22 件、うち 17 件がデータ単位の認可) だった。受け取った ID を、呼び出した人の会社、持ち主、ロールと照らしていない。形は 3 つある。**(1) 条件が空だと絞り込みが消える**: 共通の更新・削除の部品が、`companyId` を省いたリクエストでは会社の条件ごと落としていて、他社の行を更新できた。**(2) 本文の値を信じる**: API がトークンの中の身元ではなく、本文の `userId` と `companyId` を使っていた。**(3) 入口の一部にしか確認が無い**。認可以外では、API Gateway のリクエストの検証が `application/json` にしか効かず、別の `Content-Type` で送ると検証を飛ばしたまま、Lambda が本文を JSON として処理していた。
-- **影響の広げ方**: 手順の飛ばしも繰り返し出ている。パスワードの確認のあと、MFA の前にセッションの Cookie が出る。「この端末を記憶する」による MFA の省略が、クライアントの送る値で決まる。承認済みの予約に、前の段階の API をもう一度呼ぶと「申請中」に戻る。メールの確認コードは、Cognito の API を直接呼ぶ経路では失敗の回数が数えられず、総当たりができた。Spring では、Spring Security が `/rooms/import/` (末尾に `/`) を別の URL として広いルール `/rooms/**` に当て、Spring MVC (5 系の既定) は同じリクエストを `/rooms/import` に届けていた。
+### [2026-11-26] アクセス制御 (2): 権限を確かめる層と、振り分ける層で「同じ URL」の見方がずれていないか
+- **種類**: アクセス制御 / パスの食い違い
+- **今日の範囲**: 同じページの「プラットフォームの設定の誤り」と「URL の照合の食い違い」。
+- **仕組みの肝**: 権限を、アプリの手前で「URL とメソッドの組」のルール (例: `DENY: POST, /admin/deleteUser, managers`) として書く構成が対象。抜け方は 4 つ。
+  - **URL を上書きするヘッダー**: `X-Original-URL` / `X-Rewrite-URL` を元の URL として扱うフレームワークがある。手前の層はリクエスト行しか見ない。
+  - **メソッドの違い**: POST だけ止めていて、同じ操作が GET などでも動く。
+  - **大文字と拡張子**: `/ADMIN/DELETEUSER` や `/admin/deleteUser.anything` が同じ処理に届く。後者は Spring の `useSuffixPatternMatch` (5.3 より前は既定で有効)。
+  - **末尾のスラッシュ**: `/admin/deleteUser/` を別のパスとして扱う層がある。
+- **実例で見ると**:
+  - **GeoServer (CVE-2026-129243、今日のセキュリティ欄)**: 振り分けは `x/WFS` を WFS として動かすが、権限の層は `x/WFS` のまま `wfs` 用のルールと比べる。一致するルールが無く、確認が飛ばされた (Ostorlab)。
+  - **Spring (Qiita、永田氏)**: Spring Security は `/rooms/import/` を広いルール `/rooms/**` に当て、Spring MVC は `/rooms/import` に届けていた。
+  - **自作の IDOR (Zenn、thigaki 氏)**: 共通の権限チェックが `/group/:groupId/user/:userId` の形を前提にしていて、`/group/:groupId/:userId` で足したエンドポイントには掛からなかった。
 - **自分の診断で試すこと**:
-  - 更新・削除の API で、会社やテナントを表すパラメータを**空にする、丸ごと消す**。自分のテナント以外の行が更新されたり、件数が増えたりすれば、絞り込みの条件が消えている。ソースコードでは、条件を「値があるときだけ足す」共通の部品を探す。
-  - API Gateway の後ろの API には、同じ JSON の本文を `Content-Type: text/plain` などに変えて送る。検証で弾かれていた値 (範囲の外の数、自分より上のロール) が通れば当たり。モデルの content type が `$default` になっているかを設定で確かめる。
-  - 多段のログインでは、各段階の応答で**トークンや Cookie がいつ出るか**を記録し、MFA の前に出たものだけで保護された API を呼ぶ。MFA の省略を決める値がリクエストの中にあれば書き換える。
-  - Spring 5 系のアプリでは、権限の必要なパスの末尾に `/` を付けて送る。403 だったものが 200 になれば、Spring Security と Spring MVC でパスの見方がずれている。
-- 出典: [Qiita (永田 / ntaka329)](https://qiita.com/ntaka329/items/3f9405a4e2bb7e0add3f)
+  - **パスを崩す**: 403 のパスを、大文字にする、拡張子を足す、末尾に `/` を足す。200 や業務エラーに変われば当たり。
+  - **ヘッダーで上書き**: 許可されたパスに `X-Original-URL` で制限付きのパスを付けて送る。制限付きの機能が返れば当たり。
+  - **メソッドを変える**: POST の操作を GET や PUT で送る。同じ結果になれば当たり。
+  - **ソースコードで見る**: 共通の権限チェックが前提にする URL の形と、ルートの一覧を突き合わせる。「一致するルールが無ければ許可」になっていないかも見る。
+- 出典: [Web Security Academy: Access control](https://portswigger.net/web-security/access-control) / [Ostorlab (Ostorlab Team)](https://blog.ostorlab.co/geoserver-unauthenticated-rce-chain-cve-2026-129245.html) / [Qiita (永田 / ntaka329)](https://qiita.com/ntaka329/items/3f9405a4e2bb7e0add3f) / [Zenn (thigaki)](https://zenn.dev/aeyesec/articles/0d2aef991b87bc)
+
+### [2026-11-26] アクセス制御 (3): ID を差し替える水平の権限昇格と IDOR。推測できない ID でも、転送の応答でも漏れていないか
+- **種類**: アクセス制御 / IDOR
+- **今日の範囲**: 同じページの「水平の権限昇格」「水平から垂直へ」と、下位ページ「IDOR」の全体。
+- **仕組みの肝**: `/myaccount?id=123` の `id` を他人の値に変えると、その人のデータが見える形。見落としやすい点は 4 つ。
+  - **GUID でも安全ではない**: 他人の GUID がメッセージやレビューなど別の画面に出ていれば、連番と同じ。
+  - **転送の本文に残る**: ログイン画面へ転送する応答の本文に、対象の利用者のデータが入ったままのことがある。
+  - **水平から垂直へ**: 差し替える先を管理者にすると、パスワードの表示や変更を通じて管理者になれる。
+  - **静的ファイルも対象**: 連番のファイル名 (例: `/static/12144.txt`) で置いた記録は、アプリの権限チェックを通らずに配られやすい。
+- **実例で見ると**: 同じ Qiita の報告では、重大な指摘 77 件のうち 17 件がこの種類だった。
+  - **消すと通る**: 共通の更新・削除の部品が、`companyId` を省いたリクエストでは会社の条件ごと落とし、他社の行を更新できた。
+  - **本文を信じる**: API がトークンの中の身元ではなく、本文の `userId` と `companyId` を使っていた。
+- **自分の診断で試すこと**:
+  - **差し替える**: アカウントを 2 つ用意し、A のリクエストの ID を B のものに変える。読み取り、更新、削除のすべてで行う。
+  - **302 でも本文を見る**: 転送の応答を Burp で開き、B の情報が入っていないかを見る。
+  - **GUID の出どころを探す**: 一覧、コメント、共有リンク、API の応答の入れ子に、他人の ID が出ていないか。
+  - **空にする・消す**: テナントや持ち主のパラメータを空にする、項目ごと消す。件数が増える、他社の行が変われば当たり。
+  - **ファイルの URL**: 添付や帳票の URL が連番や日付の規則でないか、ログインなしで開けないか。
+- 出典: [Web Security Academy: Access control](https://portswigger.net/web-security/access-control) / [Web Security Academy: IDOR](https://portswigger.net/web-security/access-control/idor) / [Qiita (永田 / ntaka329)](https://qiita.com/ntaka329/items/3f9405a4e2bb7e0add3f)
 
 <!-- bounty:end -->
 
