@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["Messages API を Python から Rust", "ShellBench"],
+  "aisec": ["1 億 4,500 万件", "PRECEPT", "markdownify-mcp"],
+  "sec": ["Fail2Install の修正後", "Joomla 6.2.1", "PolinRider", "Jenkins"],
+  "cve": [],
+  "jp": ["ビックカメラグループ", "QUO カード Pay", "ハノワ"],
+  "jvn": []
+}

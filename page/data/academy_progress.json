@@ -36,7 +36,10 @@
   "done": [
     {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control", "section": "アクセス制御の 3 分類 / 垂直の権限昇格: 保護されていない機能、パラメータ頼みの制御"},
     {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control", "section": "プラットフォームの設定の誤り (X-Original-URL、メソッド) / URL の照合の食い違い"},
-    {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control/idor", "section": "水平の権限昇格、水平から垂直へ / IDOR のページ全体"}
+    {"date": "2026-11-26", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control/idor", "section": "水平の権限昇格、水平から垂直へ / IDOR のページ全体"},
+    {"date": "2026-11-27", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control", "section": "多段の処理での制御の漏れ / Referer による制御 / 場所による制御"},
+    {"date": "2026-11-27", "topic": "アクセス制御", "url": "https://portswigger.net/web-security/access-control/security-models", "section": "防ぎ方 (access-control のページの最後の節) / Access control security models のページ全体。アクセス制御はここまでで完了"},
+    {"date": "2026-11-27", "topic": "認証", "url": "https://portswigger.net/web-security/authentication", "section": "最初のページ全体 (認証とは、認可との違い、欠陥の生まれ方、影響、下位ページの並び)"}
   ],
-  "next": "アクセス制御の残り: access-control のページの「多段の処理での制御の漏れ」「Referer による制御」「場所による制御」「防ぎ方」の節と、下位ページ「Access control security models」。終わったら「認証」へ。"
+  "next": "認証の続き: 下位ページ「Vulnerabilities in password-based login」(https://portswigger.net/web-security/authentication/password-based) を頭から。節は、総当たり (利用者名・パスワード)、利用者名の列挙、総当たり対策の欠陥 (アカウントのロック、利用者ごとの回数制限)、HTTP Basic 認証。その次は multi-factor、other-mechanisms、securing の順。"
 }
