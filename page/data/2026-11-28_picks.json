@@ -1,0 +1,9 @@
+{
+  "hide": ["cve", "deep"],
+  "ai": ["GitLab 19.6"],
+  "aisec": ["スイス NCSC", "CREST の調査", "sandbox_mode"],
+  "sec": ["NFS2ROOT", "Project Granite", "pCloud Pass", "WeaveLotus"],
+  "cve": [],
+  "jp": ["GMOペパボ", "ZOZO", "東京海上ダイレクト"],
+  "jvn": []
+}
